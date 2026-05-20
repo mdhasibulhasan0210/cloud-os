@@ -14,10 +14,13 @@ const fileStorage = new CloudinaryStorage({
   cloudinary,
   params: async (req, file) => {
     const isImage = file.mimetype.startsWith('image/');
+    const isPdf = file.mimetype === 'application/pdf';
     return {
       folder: 'cloud-os/uploads',
       resource_type: 'auto',
       allowed_formats: ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'doc', 'docx', 'xls', 'xlsx'],
+      // Use 'raw' for non-image files to bypass Cloudinary image size limits
+      ...((!isImage && !isPdf) && { resource_type: 'raw' }),
       public_id: `${Date.now()}-${Math.round(Math.random() * 1e9)}-${file.originalname.replace(/\.[^/.]+$/, '').replace(/\s+/g, '_')}`,
       ...(isImage && { transformation: [{ quality: 'auto' }] })
     };

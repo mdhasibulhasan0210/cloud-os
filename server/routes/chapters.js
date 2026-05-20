@@ -4,9 +4,9 @@ const {
   updateChapter,
   deleteChapter
 } = require('../controllers/subjectController');
-const { protect, adminOnly } = require('../middleware/auth');
+const { protect, adminOrModerator } = require('../middleware/auth');
 
-router.put('/:id', protect, adminOnly, updateChapter);
-router.delete('/:id', protect, adminOnly, deleteChapter);
+router.put('/:id', protect, adminOrModerator, updateChapter);
+router.delete('/:id', protect, adminOrModerator, deleteChapter);
 
 module.exports = router;

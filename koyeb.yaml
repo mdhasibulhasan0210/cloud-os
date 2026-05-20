@@ -1,0 +1,20 @@
+name: cloud-os
+services:
+  - name: web
+    type: web
+    git:
+      repository: github.com/mdhsibulhasan/cloud-os
+      branch: main
+    build:
+      buildpack:
+        build_command: npm install
+        run_command: npm start
+    env:
+      - key: NODE_ENV
+        value: production
+    ports:
+      - port: 8000
+        protocol: http
+    routes:
+      - path: /
+        port: 8000

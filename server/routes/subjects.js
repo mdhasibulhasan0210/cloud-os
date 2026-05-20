@@ -10,16 +10,16 @@ const {
   updateChapter,
   deleteChapter
 } = require('../controllers/subjectController');
-const { protect, adminOnly } = require('../middleware/auth');
+const { protect, adminOnly, adminOrModerator } = require('../middleware/auth');
 
 // Subject routes
 router.get('/', protect, getAllSubjects);
-router.post('/', protect, adminOnly, createSubject);
-router.put('/:id', protect, adminOnly, updateSubject);
-router.delete('/:id', protect, adminOnly, deleteSubject);
+router.post('/', protect, adminOrModerator, createSubject);
+router.put('/:id', protect, adminOrModerator, updateSubject);
+router.delete('/:id', protect, adminOrModerator, deleteSubject);
 
 // Chapter routes
 router.get('/:subjectId/chapters', protect, getChapters);
-router.post('/:subjectId/chapters', protect, adminOnly, createChapter);
+router.post('/:subjectId/chapters', protect, adminOrModerator, createChapter);
 
 module.exports = router;

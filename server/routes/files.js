@@ -19,7 +19,7 @@ const { uploadFile: uploadMiddleware } = require('../middleware/upload');
 router.post('/upload', protect, approvedOnly, uploadMiddleware.single('file'), uploadFile);
 router.get('/pending', protect, adminOrModerator, getPendingFiles);
 router.put('/approve/:id', protect, adminOrModerator, approveFile);
-router.put('/reject/:id', protect, adminOnly, rejectFile);
+router.put('/reject/:id', protect, adminOrModerator, rejectFile);
 router.post('/share', protect, approvedOnly, shareFile);
 router.get('/preview/:id', protect, previewFile);
 router.get('/thumbnail/:id', protect, getThumbnail);
