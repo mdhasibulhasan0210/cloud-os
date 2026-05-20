@@ -203,15 +203,19 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 
 /* ── MODAL ── */
 .modal-ov{
-  position:fixed;inset:0;background:rgba(0,0,0,.78);backdrop-filter:blur(5px);
-  z-index:200;display:none;align-items:center;justify-content:center;
+  position:fixed;inset:0;background:rgba(0,0,0,.88);backdrop-filter:blur(6px);
+  z-index:200;display:none;align-items:center;justify-content:center;padding:1rem;
 }
 .modal-ov.open{display:flex}
 .modal{
-  background:var(--bg2);border:1px solid var(--border);border-radius:14px;
-  padding:1.8rem;width:90%;max-width:500px;max-height:90vh;overflow-y:auto;
+  background:var(--bg2);border:1px solid var(--border);border-radius:12px;
+  padding:1.5rem;width:min(520px,96vw);max-height:92vh;overflow-y:auto;
   box-shadow:0 20px 60px rgba(0,0,0,.6);
   animation:modalIn .25s ease-out;
+}
+.modal.modal-pdf{
+  padding:0;width:min(900px,96vw);height:92vh;max-height:92vh;
+  display:flex;flex-direction:column;overflow:hidden;
 }
 @keyframes modalIn{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}}
 .modal-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.3rem}
@@ -404,8 +408,19 @@ function toast(msg,type='ok'){
 }
 
 // ── MODAL ──
-function openModal(html){document.getElementById('modal-body').innerHTML=html;document.getElementById('modal').classList.add('open');}
-function closeModal(){document.getElementById('modal').classList.remove('open');}
+function openModal(html, isPdf=false){
+  const body = document.getElementById('modal-body');
+  const modal = body.parentElement;
+  body.innerHTML = html;
+  if(isPdf) modal.classList.add('modal-pdf');
+  else modal.classList.remove('modal-pdf');
+  document.getElementById('modal').classList.add('open');
+}
+function closeModal(){
+  document.getElementById('modal').classList.remove('open');
+  document.getElementById('modal-body').innerHTML='';
+  document.getElementById('modal-body').parentElement.classList.remove('modal-pdf');
+}
 document.getElementById('modal').addEventListener('click',e=>{if(e.target===document.getElementById('modal'))closeModal();});
 
 // ── API ──
@@ -962,17 +977,59 @@ async function doShare(fileId){
 }
 
 // ── PDF PREVIEW ──
-function previewFile(fileId,filename,mimetype){
-  if(mimetype&&mimetype.includes('pdf')){
-    openModal(`<div class="modal-hdr"><h3><i class="fas fa-file-pdf" style="color:var(--green)"></i> ${filename}</h3><button class="modal-close" onclick="closeModal()">×</button></div>
-      <div style="text-align:center;padding:1rem">
-        <iframe src="/api/files/preview/${fileId}" style="width:100%;height:70vh;border:none;border-radius:8px;background:#fff"></iframe>
+async function previewFile(fileId,filename,mimetype){
+  // First fetch the actual Cloudinary URL from our API
+  let fileUrl = null;
+  let downloadAllowed = true;
+  try {
+    const data = await api(`/files/preview/${fileId}`);
+    fileUrl = data.url;
+    downloadAllowed = data.downloadAllowed !== false;
+  } catch(e) {
+    toast('Could not load file: ' + e.message, 'error');
+    return;
+  }
+
+  if (!fileUrl) { toast('File URL not found', 'error'); return; }
+
+  const isPdf = (mimetype && mimetype.includes('pdf')) || filename.toLowerCase().endsWith('.pdf');
+  const isImg = mimetype && mimetype.startsWith('image/');
+
+  const dlBtn = downloadAllowed
+    ? `<a href="${fileUrl}" download="${filename}" target="_blank" style="display:inline-flex;align-items:center;gap:.4rem;padding:.4rem .9rem;background:rgba(0,255,136,.1);border:1px solid rgba(0,255,136,.25);border-radius:6px;color:var(--green);font-size:.78rem;text-decoration:none;cursor:pointer"><i class="fas fa-download"></i> Download</a>`
+    : '';
+  const newTabBtn = `<a href="${fileUrl}" target="_blank" style="display:inline-flex;align-items:center;gap:.4rem;padding:.4rem .9rem;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:6px;color:var(--muted);font-size:.78rem;text-decoration:none"><i class="fas fa-external-link-alt"></i> Open Tab</a>`;
+
+  if (isPdf) {
+    openModal(`
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap;padding:.8rem 1rem;background:rgba(10,26,18,.95);border-bottom:1px solid var(--border);border-radius:12px 12px 0 0;flex-shrink:0">
+        <h3 style="font-size:.82rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:55%;color:var(--green)"><i class="fas fa-file-pdf"></i> ${filename}</h3>
+        <div style="display:flex;gap:.4rem;align-items:center;flex-shrink:0">
+          ${dlBtn} ${newTabBtn}
+          <button onclick="closeModal()" style="background:rgba(239,68,68,.1);border:none;color:#ef4444;width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:.9rem;display:flex;align-items:center;justify-content:center">×</button>
+        </div>
+      </div>
+      <div style="flex:1;overflow:hidden;background:#1a1a1a">
+        <iframe src="${fileUrl}" style="width:100%;height:100%;border:none;display:block"></iframe>
+      </div>`, true);
+  } else if (isImg) {
+    openModal(`
+      <div class="modal-hdr" style="display:flex;align-items:center;justify-content:space-between">
+        <h3 style="font-size:.85rem"><i class="fas fa-image" style="color:var(--green)"></i> ${filename}</h3>
+        <div style="display:flex;gap:.4rem">${dlBtn} ${newTabBtn} <button class="modal-close" onclick="closeModal()">×</button></div>
+      </div>
+      <div style="text-align:center;padding:1rem;overflow:auto;max-height:82vh">
+        <img src="${fileUrl}" style="max-width:100%;max-height:78vh;border-radius:8px;object-fit:contain">
       </div>`);
   } else {
-    openModal(`<div class="modal-hdr"><h3><i class="fas fa-file" style="color:var(--green)"></i> ${filename}</h3><button class="modal-close" onclick="closeModal()">×</button></div>
-      <div style="text-align:center;padding:1rem">
-        <img src="/api/files/preview/${fileId}" style="max-width:100%;max-height:70vh;border-radius:8px" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
-        <div style="display:none;color:var(--muted);padding:2rem"><i class="fas fa-file" style="font-size:3rem;margin-bottom:1rem;display:block;opacity:.4"></i>Preview not available</div>
+    openModal(`
+      <div class="modal-hdr" style="display:flex;align-items:center;justify-content:space-between">
+        <h3 style="font-size:.85rem"><i class="fas fa-file" style="color:var(--green)"></i> ${filename}</h3>
+        <div style="display:flex;gap:.4rem">${dlBtn} ${newTabBtn} <button class="modal-close" onclick="closeModal()">×</button></div>
+      </div>
+      <div style="text-align:center;padding:3rem;color:var(--muted)">
+        <i class="fas fa-file" style="font-size:3rem;margin-bottom:1rem;display:block;opacity:.4"></i>
+        <p>Preview not available for this file type.</p>
       </div>`);
   }
 }

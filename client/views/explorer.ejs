@@ -215,7 +215,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .pdf-window{
   background:#111;border:0.5px solid rgba(0,255,136,0.2);border-radius:10px;
   display:flex;flex-direction:column;
-  width:min(680px,96vw);height:min(90vh,900px);
+  width:min(960px,98vw);height:95vh;
   box-shadow:0 20px 60px rgba(0,0,0,.6),0 0 20px rgba(0,255,136,.04);
   animation:pdfIn .3s cubic-bezier(.34,1.56,.64,1);
   overflow:hidden;
@@ -302,7 +302,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
   .mob-overlay.open{display:block}
   .subjects-grid{grid-template-columns:repeat(auto-fill,minmax(130px,1fr))}
   .files-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
-  .pdf-window{width:98vw;height:92vh}
+  .pdf-window{width:99vw;height:96vh}
   .topbar{padding:.7rem 1rem;gap:.6rem}
 }
 </style>
@@ -739,7 +739,15 @@ async function openPdfViewer(fileId,filename){
     const dlBtn=document.getElementById('pdf-dl-btn');
     if(data.downloadAllowed!==false){
       dlBtn.style.display='flex';
-      dlBtn.onclick=()=>downloadFileDirect(data.url,filename);
+      dlBtn.onclick=()=>{
+        const a=document.createElement('a');
+        a.href=pdfDownloadUrl;
+        a.download=filename;
+        a.target='_blank';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      };
     } else { dlBtn.style.display='none'; }
     const iframe=document.getElementById('pdf-iframe');
     iframe.src=data.url;
