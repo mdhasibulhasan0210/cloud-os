@@ -58,11 +58,11 @@ exports.uploadFile = async (req, res) => {
       const admin = await db.users.findOne({ role: 'admin' });
       if (admin) {
         await db.notifications.insert({
-          userId: admin._id,
+          userId: admin._id.toString(),
           message: `New file upload pending approval: ${req.file.originalname}`,
           type: 'approval',
           read: false,
-          fileId: file._id,
+          fileId: file._id.toString(),
           createdAt: new Date()
         });
       }
@@ -72,7 +72,7 @@ exports.uploadFile = async (req, res) => {
       success: true,
       message: status === 'approved' ? 'File uploaded successfully' : 'File uploaded, pending approval',
       file: {
-        id: file._id,
+        id: file._id.toString(),
         filename: file.originalname,
         path: file.path,
         thumbnailPath: file.thumbnailPath,
@@ -120,7 +120,7 @@ exports.getFiles = async (req, res) => {
       files.map(async (file) => {
         const uploader = await db.users.findOne({ _id: file.uploadedBy });
         return {
-          id: file._id,
+          id: file._id.toString(),
           filename: file.originalname,
           path: file.path,
           thumbnailPath: file.thumbnailPath,
@@ -130,9 +130,9 @@ exports.getFiles = async (req, res) => {
           mimetype: file.mimetype,
           downloadAllowed: file.downloadAllowed,
           uploadedBy: uploader ? uploader.username : 'Unknown',
-          uploaderId: file.uploadedBy,
-          subjectId: file.subjectId,
-          chapterId: file.chapterId,
+          uploaderId: file.uploadedBy ? file.uploadedBy.toString() : null,
+          subjectId: file.subjectId ? file.subjectId.toString() : null,
+          chapterId: file.chapterId ? file.chapterId.toString() : null,
           createdAt: file.createdAt
         };
       })
@@ -160,8 +160,8 @@ exports.getFile = async (req, res) => {
 
     const canView =
       req.user.role === 'admin' ||
-      file.owner === req.user.id ||
-      file.sharedWith.includes(req.user.id) ||
+      file.owner?.toString() === req.user.id ||
+      (file.sharedWith || []).map(id => id.toString()).includes(req.user.id) ||
       (file.status === 'approved' && file.subjectId);
 
     if (!canView) {
@@ -173,7 +173,7 @@ exports.getFile = async (req, res) => {
     res.json({
       success: true,
       file: {
-        id: file._id,
+        id: file._id.toString(),
         filename: file.originalname,
         path: file.path,
         thumbnailPath: file.thumbnailPath,
@@ -204,7 +204,7 @@ exports.updateFile = async (req, res) => {
     const file = await db.files.findOne({ _id: id });
     if (!file) return res.status(404).json({ success: false, message: 'File not found' });
 
-    if (req.user.role !== 'admin' && file.owner !== req.user.id) {
+    if (req.user.role !== 'admin' && file.owner?.toString() !== req.user.id) {
       return res.status(403).json({ success: false, message: 'Access denied' });
     }
 
@@ -234,7 +234,7 @@ exports.deleteFile = async (req, res) => {
 
     if (!file) return res.status(404).json({ success: false, message: 'File not found' });
 
-    if (req.user.role !== 'admin' && file.owner !== req.user.id) {
+    if (req.user.role !== 'admin' && file.owner?.toString() !== req.user.id) {
       return res.status(403).json({ success: false, message: 'Access denied' });
     }
 
@@ -266,8 +266,8 @@ exports.previewFile = async (req, res) => {
 
     const canView =
       req.user.role === 'admin' ||
-      file.owner === req.user.id ||
-      file.sharedWith.includes(req.user.id) ||
+      file.owner?.toString() === req.user.id ||
+      (file.sharedWith || []).map(id => id.toString()).includes(req.user.id) ||
       (file.status === 'approved' && file.subjectId);
 
     if (!canView) return res.status(403).json({ success: false, message: 'Access denied' });
@@ -302,11 +302,11 @@ exports.shareFile = async (req, res) => {
     const file = await db.files.findOne({ _id: fileId });
     if (!file) return res.status(404).json({ success: false, message: 'File not found' });
 
-    if (req.user.role !== 'admin' && file.owner !== req.user.id) {
+    if (req.user.role !== 'admin' && file.owner?.toString() !== req.user.id) {
       return res.status(403).json({ success: false, message: 'Access denied' });
     }
 
-    const currentShared = file.sharedWith || [];
+    const currentShared = (file.sharedWith || []).map(id => id.toString());
     const newShared = [...new Set([...currentShared, ...userIds])];
 
     await db.files.update({ _id: fileId }, { $set: { sharedWith: newShared } });
@@ -318,7 +318,7 @@ exports.shareFile = async (req, res) => {
           message: `${req.user.username} shared a file with you: ${file.originalname}`,
           type: 'share',
           read: false,
-          fileId: file._id,
+          fileId: file._id.toString(),
           createdAt: new Date()
         });
       }
@@ -343,14 +343,14 @@ exports.getPendingFiles = async (req, res) => {
       files.map(async (file) => {
         const uploader = await db.users.findOne({ _id: file.uploadedBy });
         return {
-          id: file._id,
+          id: file._id.toString(),
           filename: file.originalname,
           path: file.path,
           thumbnailPath: file.thumbnailPath,
           category: file.category,
           size: file.size,
           uploadedBy: uploader ? uploader.username : 'Unknown',
-          uploaderId: file.uploadedBy,
+          uploaderId: file.uploadedBy ? file.uploadedBy.toString() : null,
           createdAt: file.createdAt
         };
       })
@@ -377,11 +377,11 @@ exports.approveFile = async (req, res) => {
     await db.files.update({ _id: id }, { $set: { status: 'approved' } });
 
     await db.notifications.insert({
-      userId: file.uploadedBy,
+      userId: file.uploadedBy.toString(),
       message: `Your file "${file.originalname}" has been approved`,
       type: 'approval',
       read: false,
-      fileId: file._id,
+      fileId: file._id.toString(),
       createdAt: new Date()
     });
 
@@ -410,7 +410,7 @@ exports.rejectFile = async (req, res) => {
     await db.files.remove({ _id: id });
 
     await db.notifications.insert({
-      userId: file.uploadedBy,
+      userId: file.uploadedBy.toString(),
       message: `Your file "${file.originalname}" was not approved`,
       type: 'approval',
       read: false,

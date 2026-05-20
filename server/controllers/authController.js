@@ -69,7 +69,7 @@ exports.signup = async (req, res) => {
       success: true,
       message: 'Registration successful. Please wait for admin approval.',
       user: {
-        id: user._id,
+        id: user._id.toString(),
         username: user.username,
         email: user.email,
         status: user.status
@@ -128,7 +128,7 @@ exports.login = async (req, res) => {
     }
 
     // Generate token
-    const token = generateToken(user._id);
+    const token = generateToken(user._id.toString());
 
     // Set cookie
     res.cookie('token', token, cookieOptions);
@@ -139,7 +139,7 @@ exports.login = async (req, res) => {
       success: true,
       message: 'Login successful',
       user: {
-        id: user._id,
+        id: user._id.toString(),
         username: user.username,
         email: user.email,
         role: user.role,
@@ -189,7 +189,7 @@ exports.getMe = async (req, res) => {
     res.json({
       success: true,
       user: {
-        id: user._id,
+        id: user._id.toString(),
         username: user.username,
         email: user.email,
         role: user.role,

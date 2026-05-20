@@ -28,7 +28,7 @@ exports.getAllSubjects = async (req, res) => {
         });
 
         return {
-          id: subject._id,
+          id: subject._id.toString(),
           name: subject.name,
           chapterCount,
           fileCount,
@@ -86,7 +86,7 @@ exports.createSubject = async (req, res) => {
       success: true,
       message: 'Subject created successfully',
       subject: {
-        id: subject._id,
+        id: subject._id.toString(),
         name: subject.name,
         createdAt: subject.createdAt
       }
@@ -194,9 +194,9 @@ exports.getChapters = async (req, res) => {
         });
 
         return {
-          id: chapter._id,
+          id: chapter._id.toString(),
           name: chapter.name,
-          subjectId: chapter.subjectId,
+          subjectId: chapter.subjectId.toString(),
           fileCount,
           createdAt: chapter.createdAt
         };
@@ -255,9 +255,9 @@ exports.createChapter = async (req, res) => {
       success: true,
       message: 'Chapter created successfully',
       chapter: {
-        id: chapter._id,
+        id: chapter._id.toString(),
         name: chapter.name,
-        subjectId: chapter.subjectId,
+        subjectId: chapter.subjectId.toString(),
         createdAt: chapter.createdAt
       }
     });

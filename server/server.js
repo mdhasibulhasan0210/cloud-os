@@ -38,7 +38,7 @@ io.use(async (socket, next) => {
       return next(new Error('User not found'));
     }
 
-    socket.userId = user._id;
+    socket.userId = user._id.toString();
     socket.userRole = user.role;
     next();
   } catch (error) {
@@ -83,6 +83,9 @@ global.io = io;
 // Initialize admin and start server
 (async () => {
   try {
+    // Connect to MongoDB first
+    await db.connect();
+
     await initializeAdmin();
     
     server.listen(PORT, () => {

@@ -1,53 +1,42 @@
 const bcrypt = require('bcrypt');
-const db = require('../config/db');
-const logger = require('./logger');
+const User    = require('../models/User');
+const Setting = require('../models/Setting');
+const logger  = require('./logger');
 
 async function initializeAdmin() {
   try {
-    const adminExists = await db.users.findOne({ role: 'admin' });
+    const adminExists = await User.findOne({ role: 'admin' });
 
     if (!adminExists) {
       logger.info('No admin found. Creating default admin account...');
-
-      const hashedPassword = await bcrypt.hash(
-        'EverySoulWillTasteDeath,Surah-Al-Anbiya_Verse35',
-        10
+      const passwordHash = await bcrypt.hash(
+        'EverySoulWillTasteDeath,Surah-Al-Anbiya_Verse35', 10
       );
-
-      const admin = {
+      await User.create({
         username: 'MD.Hasibul Hasan',
         email: 'mdhasibulhasan0210@gmail.com',
-        passwordHash: hashedPassword,
+        passwordHash,
         role: 'admin',
         status: 'approved',
-        profilePicture: '/assets/images/profile.png',
-        createdAt: new Date()
-      };
-
-      await db.users.insert(admin);
+        profilePicture: '/assets/images/profile.png'
+      });
       logger.info('Admin created → mdhasibulhasan0210@gmail.com');
     } else {
-      // Update email if it's the old one
       if (adminExists.email === 'hasibulhasan0210@admin.com') {
-        await db.users.update(
-          { _id: adminExists._id },
-          { $set: { email: 'mdhasibulhasan0210@gmail.com' } }
-        );
-        logger.info('Admin email updated to mdhasibulhasan0210@gmail.com');
+        await User.findByIdAndUpdate(adminExists._id, { email: 'mdhasibulhasan0210@gmail.com' });
+        logger.info('Admin email updated');
       } else {
         logger.info('Admin account already exists: ' + adminExists.email);
       }
     }
 
-    const settings = await db.settings.findOne({ key: 'site' });
+    const settings = await Setting.findOne({ key: 'site' });
     if (!settings) {
-      await db.settings.insert({
+      await Setting.create({
         key: 'site',
         bio: 'Personal cloud & digital archive owner.',
         tagline: 'Personal Cloud OS - Store, Organize, Share',
-        aboutText:
-          'Building a private digital workspace for organizing knowledge, academic resources, and personal files. This system is a personal cloud operating environment designed for structured learning and archive management.',
-        createdAt: new Date()
+        aboutText: 'Building a private digital workspace for organizing knowledge, academic resources, and personal files.'
       });
       logger.info('Default site settings created');
     }
