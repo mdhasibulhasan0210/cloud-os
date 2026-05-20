@@ -368,6 +368,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
         <span class="pdf-zoom" id="pdf-zoom">100%</span>
         <button class="pdf-btn" onclick="pdfZoomIn()" title="Zoom in"><i class="fas fa-search-plus"></i></button>
         <button class="pdf-btn" id="pdf-dl-btn" title="Download"><i class="fas fa-download"></i></button>
+        <button class="pdf-btn" id="pdf-newtab-btn" title="Open in new tab" onclick="if(pdfDownloadUrl)window.open(pdfDownloadUrl,'_blank')"><i class="fas fa-external-link-alt"></i></button>
         <button class="pdf-close" onclick="closePdf()" title="Close"><i class="fas fa-times"></i></button>
       </div>
     </div>
@@ -710,7 +711,7 @@ function errHTML(msg,style=''){
 const IS_ADMIN = '<%= user.role %>' === 'admin' || '<%= user.role %>' === 'moderator';
 
 // ── PDF VIEWER ──
-let pdfZoom=100,pdfFileId='',pdfFilename='';
+let pdfZoom=100,pdfFileId='',pdfFilename='',pdfDownloadUrl='';
 
 function previewFile(fileId,filename,mimetype){
   const isPdf=mimetype&&(mimetype.includes('pdf')||filename.toLowerCase().endsWith('.pdf'));
@@ -734,6 +735,7 @@ async function openPdfViewer(fileId,filename){
   try{
     const data=await api(`/files/preview/${fileId}`);
     if(!data.success||!data.url) throw new Error('Could not get file URL');
+    pdfDownloadUrl = data.url;
     const dlBtn=document.getElementById('pdf-dl-btn');
     if(data.downloadAllowed!==false){
       dlBtn.style.display='flex';
