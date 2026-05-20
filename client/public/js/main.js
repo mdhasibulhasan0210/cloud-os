@@ -25,7 +25,6 @@ function initMobileMenu() {
   const overlay = document.querySelector('.sidebar-overlay');
   
   if (!menuBtn || !sidebar) return;
-  
   menuBtn.addEventListener('click', () => {
     menuBtn.classList.toggle('active');
     sidebar.classList.toggle('active');

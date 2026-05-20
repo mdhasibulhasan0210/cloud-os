@@ -105,20 +105,19 @@ async function loadStats() {
     ]);
     
     const statsEl = document.getElementById('dashboard-stats');
-    if (statsEl) {
-      statsEl.innerHTML = `
-        <div class="stat-card glass-card">
-          <div class="stat-icon">📁</div>
-          <div class="stat-value">${filesRes.files.length}</div>
-          <div class="stat-label">My Files</div>
-        </div>
-        <div class="stat-card glass-card">
-          <div class="stat-icon">🔔</div>
-          <div class="stat-value">${notifRes.count}</div>
-          <div class="stat-label">Notifications</div>
-        </div>
-      `;
-    }
+    if (!statsEl) return;
+    statsEl.innerHTML = `
+      <div class="stat-card glass-card">
+        <div class="stat-icon">📁</div>
+        <div class="stat-value">${filesRes.files.length}</div>
+        <div class="stat-label">My Files</div>
+      </div>
+      <div class="stat-card glass-card">
+        <div class="stat-icon">🔔</div>
+        <div class="stat-value">${notifRes.count}</div>
+        <div class="stat-label">Notifications</div>
+      </div>
+    `;
   } catch (error) {
     console.error('Failed to load stats:', error);
   }
