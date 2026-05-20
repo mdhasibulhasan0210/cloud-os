@@ -15,12 +15,19 @@ const fileStorage = new CloudinaryStorage({
   params: async (req, file) => {
     const isImage = file.mimetype.startsWith('image/');
     const isPdf = file.mimetype === 'application/pdf';
+    const isDoc = ['application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    ].includes(file.mimetype);
+
+    // Use 'raw' for PDFs and docs — bypasses Cloudinary's 10MB image limit
+    // Raw files support up to 100MB on free plan
+    const resourceType = isImage ? 'image' : 'raw';
+
     return {
       folder: 'cloud-os/uploads',
-      resource_type: 'auto',
-      allowed_formats: ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'doc', 'docx', 'xls', 'xlsx'],
-      // Use 'raw' for non-image files to bypass Cloudinary image size limits
-      ...((!isImage && !isPdf) && { resource_type: 'raw' }),
+      resource_type: resourceType,
       public_id: `${Date.now()}-${Math.round(Math.random() * 1e9)}-${file.originalname.replace(/\.[^/.]+$/, '').replace(/\s+/g, '_')}`,
       ...(isImage && { transformation: [{ quality: 'auto' }] })
     };
@@ -66,11 +73,10 @@ const imageFilter = (req, file, cb) => {
   }
 };
 
-// Multer instances
 exports.uploadFile = multer({
   storage: fileStorage,
   fileFilter,
-  limits: { fileSize: 500 * 1024 * 1024 } // 500MB
+  limits: { fileSize: 100 * 1024 * 1024 } // 100MB (Cloudinary raw free plan limit)
 });
 
 exports.uploadProfile = multer({
@@ -82,7 +88,7 @@ exports.uploadProfile = multer({
 exports.uploadBroadcast = multer({
   storage: fileStorage,
   fileFilter,
-  limits: { fileSize: 100 * 1024 * 1024 } // 100MB
+  limits: { fileSize: 50 * 1024 * 1024 } // 50MB
 });
 
 // Export cloudinary instance for use in controllers (delete files etc.)
