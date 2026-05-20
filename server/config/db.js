@@ -3,6 +3,7 @@ const logger = require('../utils/logger');
 
 const connectDB = async () => {
   try {
+    mongoose.set('strictQuery', true);
     const conn = await mongoose.connect(process.env.MONGODB_URI, {
       serverSelectionTimeoutMS: 10000
     });
