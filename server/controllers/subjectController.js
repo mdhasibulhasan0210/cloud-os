@@ -16,7 +16,7 @@ const chapterSchema = Joi.object({
 // @access  Private
 exports.getAllSubjects = async (req, res) => {
   try {
-    const subjects = await db.subjects.find({}).sort({ createdAt: -1 });
+    const subjects = await db.subjects.find({}).sort({ name: 1 }); // alphabetical order
 
     // Get chapter count for each subject
     const subjectsWithCounts = await Promise.all(

@@ -391,6 +391,62 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 
 <div class="toast" id="toast"></div>
 
+<!-- MODAL: Create Subject -->
+<div id="modal-create-subject" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:400;align-items:center;justify-content:center">
+  <div style="background:#0a1a12;border:1px solid rgba(0,255,136,.25);border-radius:12px;padding:1.5rem;width:min(380px,92vw)">
+    <h3 style="color:var(--green);margin-bottom:1rem;font-size:.95rem"><i class="fas fa-plus"></i> New Subject</h3>
+    <input id="input-subject-name" type="text" placeholder="Subject name..." maxlength="100"
+      style="width:100%;background:rgba(0,255,136,.04);border:1px solid rgba(0,255,136,.2);border-radius:7px;padding:.6rem .9rem;color:var(--text);font-size:.85rem;outline:none;margin-bottom:1rem"
+      onkeydown="if(event.key==='Enter')submitCreateSubject()">
+    <div style="display:flex;gap:.6rem;justify-content:flex-end">
+      <button onclick="closeCreateSubjectModal()" class="btn-xs" style="background:rgba(255,255,255,.06);color:var(--muted);border:1px solid rgba(255,255,255,.1);padding:.45rem .9rem">Cancel</button>
+      <button onclick="submitCreateSubject()" class="btn-xs btn-g" style="padding:.45rem .9rem">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Create Chapter -->
+<div id="modal-create-chapter" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:400;align-items:center;justify-content:center">
+  <div style="background:#0a1a12;border:1px solid rgba(0,255,136,.25);border-radius:12px;padding:1.5rem;width:min(380px,92vw)">
+    <h3 style="color:var(--green);margin-bottom:1rem;font-size:.95rem"><i class="fas fa-folder-plus"></i> New Chapter</h3>
+    <input id="input-chapter-name" type="text" placeholder="Chapter name..." maxlength="100"
+      style="width:100%;background:rgba(0,255,136,.04);border:1px solid rgba(0,255,136,.2);border-radius:7px;padding:.6rem .9rem;color:var(--text);font-size:.85rem;outline:none;margin-bottom:1rem"
+      onkeydown="if(event.key==='Enter')submitCreateChapter()">
+    <div style="display:flex;gap:.6rem;justify-content:flex-end">
+      <button onclick="closeCreateChapterModal()" class="btn-xs" style="background:rgba(255,255,255,.06);color:var(--muted);border:1px solid rgba(255,255,255,.1);padding:.45rem .9rem">Cancel</button>
+      <button onclick="submitCreateChapter()" class="btn-xs btn-g" style="padding:.45rem .9rem">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Upload File -->
+<div id="modal-upload" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:400;align-items:center;justify-content:center">
+  <div style="background:#0a1a12;border:1px solid rgba(0,255,136,.25);border-radius:12px;padding:1.5rem;width:min(420px,92vw)">
+    <h3 style="color:var(--green);margin-bottom:1rem;font-size:.95rem"><i class="fas fa-upload"></i> Upload File</h3>
+    <input id="upload-file-input" type="file" accept=".pdf,.jpg,.jpeg,.png,.gif,.doc,.docx,.xls,.xlsx"
+      style="width:100%;background:rgba(0,255,136,.04);border:1px solid rgba(0,255,136,.2);border-radius:7px;padding:.6rem .9rem;color:var(--text);font-size:.82rem;margin-bottom:.75rem">
+    <select id="upload-category" style="width:100%;background:#0a1a12;border:1px solid rgba(0,255,136,.2);border-radius:7px;padding:.6rem .9rem;color:var(--text);font-size:.82rem;margin-bottom:.75rem">
+      <option value="pdf">PDF</option>
+      <option value="book">Book</option>
+      <option value="note">Note</option>
+      <option value="sheet">Sheet</option>
+      <option value="other">Other</option>
+    </select>
+    <textarea id="upload-desc" placeholder="Description (optional)..." rows="2"
+      style="width:100%;background:rgba(0,255,136,.04);border:1px solid rgba(0,255,136,.2);border-radius:7px;padding:.6rem .9rem;color:var(--text);font-size:.82rem;resize:none;margin-bottom:.75rem"></textarea>
+    <div id="upload-progress" style="display:none;margin-bottom:.75rem">
+      <div style="background:rgba(0,255,136,.1);border-radius:4px;height:6px;overflow:hidden">
+        <div id="upload-progress-bar" style="height:100%;background:var(--green);width:0%;transition:width .3s"></div>
+      </div>
+      <div id="upload-progress-text" style="font-size:.72rem;color:var(--muted);margin-top:.3rem">Uploading...</div>
+    </div>
+    <div style="display:flex;gap:.6rem;justify-content:flex-end">
+      <button onclick="closeUploadModal()" class="btn-xs" style="background:rgba(255,255,255,.06);color:var(--muted);border:1px solid rgba(255,255,255,.1);padding:.45rem .9rem">Cancel</button>
+      <button onclick="submitUpload()" class="btn-xs btn-b" style="padding:.45rem .9rem"><i class="fas fa-upload"></i> Upload</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ── SPACE CANVAS ──
 (function(){
@@ -535,11 +591,12 @@ async function cacheAllFiles(){
 function renderSubjects(subjects){
   const grid=document.getElementById('subj-grid');
   if(!grid)return;
+  const adminBar=IS_ADMIN?`<div style="grid-column:1/-1;display:flex;gap:.6rem;margin-bottom:.5rem"><button class="btn-xs btn-g" onclick="showCreateSubjectModal()" style="padding:.5rem 1rem;font-size:.78rem"><i class="fas fa-plus"></i> New Subject</button></div>`:'';
   if(!subjects.length){
-    grid.innerHTML=`<div class="empty" style="grid-column:1/-1"><div class="empty-icon"><i class="fas fa-book-open"></i></div><p>No subjects available yet.</p></div>`;
+    grid.innerHTML=adminBar+`<div class="empty" style="grid-column:1/-1"><div class="empty-icon"><i class="fas fa-book-open"></i></div><p>No subjects available yet.</p></div>`;
     return;
   }
-  grid.innerHTML=subjects.map(s=>`
+  grid.innerHTML=adminBar+subjects.map(s=>`
     <div class="subj-card" onclick="loadChapters('${esc(s.id)}','${esc(s.name)}')">
       <div class="subj-icon"><i class="fas fa-book-open"></i></div>
       <div class="subj-name">${s.name}</div>
@@ -552,12 +609,17 @@ function renderSubjects(subjects){
 async function loadChapters(subjectId,subjectName){
   state={view:'chapters',subjectId,subjectName,chapterId:null,chapterName:''};
   setTitle('<i class="fas fa-list"></i>',subjectName);
+  const adminBtns=IS_ADMIN?`<div style="display:flex;gap:.6rem;margin-bottom:1rem;flex-wrap:wrap">
+    <button class="btn-xs btn-g" onclick="showCreateChapterModal('${esc(subjectId)}')" style="padding:.5rem 1rem;font-size:.78rem"><i class="fas fa-folder-plus"></i> New Chapter</button>
+    <button class="btn-xs btn-b" onclick="showUploadModal('${esc(subjectId)}','')" style="padding:.5rem 1rem;font-size:.78rem"><i class="fas fa-upload"></i> Upload File</button>
+  </div>`:'';
   document.getElementById('content').innerHTML=`
     <div class="breadcrumb">
       <span class="bc-link" onclick="loadSubjects()"><i class="fas fa-home"></i> Archive</span>
       <span class="bc-sep">/</span>
       <span class="bc-current">${subjectName}</span>
     </div>
+    ${adminBtns}
     <div id="chap-list">${loadingHTML()}</div>`;
   try{
     const d=await api(`/subjects/${subjectId}/chapters`);
@@ -644,48 +706,47 @@ function errHTML(msg,style=''){
   return`<div class="empty" ${style?`style="${style}"`:''}><div class="empty-icon"><i class="fas fa-exclamation-circle" style="color:#ef4444"></i></div><p>${msg}</p></div>`;
 }
 
+// ── USER ROLE ──
+const IS_ADMIN = '<%= user.role %>' === 'admin' || '<%= user.role %>' === 'moderator';
+
 // ── PDF VIEWER ──
-let pdfCurrentPage=1,pdfTotalPages=1,pdfZoom=100,pdfFileId='',pdfFilename='';
+let pdfZoom=100,pdfFileId='',pdfFilename='';
 
 function previewFile(fileId,filename,mimetype){
   const isPdf=mimetype&&(mimetype.includes('pdf')||filename.toLowerCase().endsWith('.pdf'));
   const isImg=mimetype&&(mimetype.includes('image')||/\.(png|jpg|jpeg|gif|webp|svg)$/i.test(filename));
-
-  if(isPdf){
-    openPdfViewer(fileId,filename);
-  } else if(isImg){
-    openImgViewer(fileId,filename);
-  } else {
-    // Try as PDF first (for unknown types)
-    openPdfViewer(fileId,filename);
-  }
+  if(isPdf) openPdfViewer(fileId,filename);
+  else if(isImg) openImgViewer(fileId,filename);
+  else openPdfViewer(fileId,filename);
 }
 
-function openPdfViewer(fileId,filename){
-  pdfFileId=fileId;pdfFilename=filename;pdfZoom=100;
+async function openPdfViewer(fileId,filename){
+  pdfFileId=fileId; pdfFilename=filename; pdfZoom=100;
   document.getElementById('pdf-title').textContent=filename;
   document.getElementById('pdf-page-info').textContent='Loading...';
   document.getElementById('pdf-zoom').textContent='100%';
-  document.getElementById('pdf-loading').style.display='flex';
+  const loadingEl=document.getElementById('pdf-loading');
+  loadingEl.style.display='flex';
+  loadingEl.innerHTML='<div class="pdf-spinner"></div><span>Loading document...</span>';
   document.getElementById('pdf-iframe').style.display='none';
   document.getElementById('pdf-overlay').classList.add('open');
   document.body.style.overflow='hidden';
-
-  // Set download button
-  document.getElementById('pdf-dl-btn').onclick=()=>downloadFile(fileId,filename);
-
-  // Load in iframe
-  const iframe=document.getElementById('pdf-iframe');
-  const src=`/api/files/preview/${fileId}`;
-  iframe.src=src;
-  iframe.onload=()=>{
-    document.getElementById('pdf-loading').style.display='none';
-    iframe.style.display='block';
-    document.getElementById('pdf-page-info').textContent='Loaded';
-  };
-  iframe.onerror=()=>{
-    document.getElementById('pdf-loading').innerHTML=`<i class="fas fa-exclamation-circle" style="font-size:2rem;color:#ef4444"></i><span>Failed to load document</span>`;
-  };
+  try{
+    const data=await api(`/files/preview/${fileId}`);
+    if(!data.success||!data.url) throw new Error('Could not get file URL');
+    const dlBtn=document.getElementById('pdf-dl-btn');
+    if(data.downloadAllowed!==false){
+      dlBtn.style.display='flex';
+      dlBtn.onclick=()=>downloadFileDirect(data.url,filename);
+    } else { dlBtn.style.display='none'; }
+    const iframe=document.getElementById('pdf-iframe');
+    iframe.src=data.url;
+    iframe.onload=()=>{loadingEl.style.display='none';iframe.style.display='block';document.getElementById('pdf-page-info').textContent='Loaded';};
+    iframe.onerror=()=>{loadingEl.innerHTML=`<i class="fas fa-exclamation-circle" style="font-size:2rem;color:#ef4444"></i><span>Failed to load. <a href="${data.url}" target="_blank" style="color:var(--green)">Open in new tab</a></span>`;};
+    setTimeout(()=>{if(loadingEl.style.display!=='none'){loadingEl.style.display='none';iframe.style.display='block';document.getElementById('pdf-page-info').textContent='Loaded';}},5000);
+  }catch(e){
+    loadingEl.innerHTML=`<i class="fas fa-exclamation-circle" style="font-size:2rem;color:#ef4444"></i><span>${e.message||'Failed to load'}</span>`;
+  }
 }
 
 function closePdf(e){
@@ -709,11 +770,13 @@ function pdfPrev(){const iframe=document.getElementById('pdf-iframe');try{iframe
 function pdfNext(){const iframe=document.getElementById('pdf-iframe');try{iframe.contentWindow.scrollBy(0,iframe.contentWindow.innerHeight*.9);}catch(e){}}
 
 function openImgViewer(fileId,filename){
-  const img=document.getElementById('img-preview');
-  img.src=`/api/files/preview/${fileId}`;
-  img.alt=filename;
-  document.getElementById('img-overlay').classList.add('open');
-  document.body.style.overflow='hidden';
+  api(`/files/preview/${fileId}`).then(data=>{
+    if(!data.success||!data.url){toast('Could not load image','err');return;}
+    const img=document.getElementById('img-preview');
+    img.src=data.url; img.alt=filename;
+    document.getElementById('img-overlay').classList.add('open');
+    document.body.style.overflow='hidden';
+  }).catch(e=>toast(e.message,'err'));
 }
 function closeImg(e){
   if(e&&e.target!==document.getElementById('img-overlay')&&e.type==='click')return;
@@ -725,15 +788,18 @@ function closeImg(e){
 // ── DOWNLOAD ──
 async function downloadFile(fileId,filename){
   try{
-    toast('Starting download...');
-    const r=await fetch(`/api/files/preview/${fileId}`,{credentials:'include'});
-    if(!r.ok)throw new Error('Download failed');
-    const blob=await r.blob();
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement('a');a.href=url;a.download=filename;
-    document.body.appendChild(a);a.click();
-    URL.revokeObjectURL(url);document.body.removeChild(a);
+    toast('Fetching download link...');
+    const data=await api(`/files/preview/${fileId}`);
+    if(!data.success||!data.url) throw new Error('Could not get file URL');
+    if(data.downloadAllowed===false){toast('Download not allowed for this file','err');return;}
+    downloadFileDirect(data.url,filename);
   }catch(e){toast(e.message,'err');}
+}
+function downloadFileDirect(url,filename){
+  toast('Starting download...');
+  const a=document.createElement('a');
+  a.href=url; a.download=filename; a.target='_blank';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
 }
 
 // ── SEARCH ──
@@ -850,9 +916,121 @@ function highlight(text,query){
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){
     closePdf();closeImg();closeSearchDropdown();
+    closeCreateSubjectModal();closeCreateChapterModal();closeUploadModal();
     searchInput.blur();
   }
 });
+
+// ── ADMIN MODALS ──
+let _modalSubjectId='',_modalChapterId='';
+
+function showCreateSubjectModal(){
+  document.getElementById('modal-create-subject').style.display='flex';
+  setTimeout(()=>document.getElementById('input-subject-name').focus(),50);
+}
+function closeCreateSubjectModal(){document.getElementById('modal-create-subject').style.display='none';}
+
+function showCreateChapterModal(subjectId){
+  _modalSubjectId=subjectId;
+  document.getElementById('modal-create-chapter').style.display='flex';
+  setTimeout(()=>document.getElementById('input-chapter-name').focus(),50);
+}
+function closeCreateChapterModal(){document.getElementById('modal-create-chapter').style.display='none';}
+
+function showUploadModal(subjectId,chapterId){
+  _modalSubjectId=subjectId; _modalChapterId=chapterId;
+  document.getElementById('modal-upload').style.display='flex';
+  document.getElementById('upload-file-input').value='';
+  document.getElementById('upload-desc').value='';
+  document.getElementById('upload-progress').style.display='none';
+}
+function closeUploadModal(){document.getElementById('modal-upload').style.display='none';}
+
+async function submitCreateSubject(){
+  const name=document.getElementById('input-subject-name').value.trim();
+  if(!name){toast('Enter a subject name','err');return;}
+  try{
+    await api('/subjects',{method:'POST',body:JSON.stringify({name})});
+    toast('Subject created!');
+    closeCreateSubjectModal();
+    loadSubjects();
+  }catch(e){toast(e.message,'err');}
+}
+
+async function submitCreateChapter(){
+  const name=document.getElementById('input-chapter-name').value.trim();
+  if(!name){toast('Enter a chapter name','err');return;}
+  try{
+    await api(`/subjects/${_modalSubjectId}/chapters`,{method:'POST',body:JSON.stringify({name})});
+    toast('Chapter created!');
+    closeCreateChapterModal();
+    loadChapters(_modalSubjectId,state.subjectName);
+  }catch(e){toast(e.message,'err');}
+}
+
+async function submitUpload(){
+  const fileInput=document.getElementById('upload-file-input');
+  const desc=document.getElementById('upload-desc').value.trim();
+  const category=document.getElementById('upload-category').value;
+  if(!fileInput.files.length){toast('Select a file','err');return;}
+  const formData=new FormData();
+  formData.append('file',fileInput.files[0]);
+  formData.append('description',desc);
+  formData.append('category',category);
+  if(_modalSubjectId) formData.append('subjectId',_modalSubjectId);
+  if(_modalChapterId) formData.append('chapterId',_modalChapterId);
+  const progress=document.getElementById('upload-progress');
+  const bar=document.getElementById('upload-progress-bar');
+  const txt=document.getElementById('upload-progress-text');
+  progress.style.display='block'; bar.style.width='0%'; txt.textContent='Uploading...';
+  try{
+    await new Promise((resolve,reject)=>{
+      const xhr=new XMLHttpRequest();
+      xhr.open('POST','/api/files/upload'); xhr.withCredentials=true;
+      xhr.upload.onprogress=(e)=>{
+        if(e.lengthComputable){const p=Math.round(e.loaded/e.total*100);bar.style.width=p+'%';txt.textContent=`Uploading... ${p}%`;}
+      };
+      xhr.onload=()=>{
+        try{const res=JSON.parse(xhr.responseText);if(xhr.status<300&&res.success)resolve(res);else reject(new Error(res.message||'Upload failed'));}
+        catch(e){reject(new Error('Upload failed'));}
+      };
+      xhr.onerror=()=>reject(new Error('Network error'));
+      xhr.send(formData);
+    });
+    bar.style.width='100%'; txt.textContent='Upload complete!';
+    toast('File uploaded!');
+    setTimeout(()=>{
+      closeUploadModal();
+      if(state.view==='files') loadFiles(state.chapterId,state.chapterName,state.subjectId,state.subjectName);
+      else if(state.view==='chapters') loadChapters(state.subjectId,state.subjectName);
+    },700);
+  }catch(e){progress.style.display='none';toast(e.message,'err');}
+}
+
+// ── LOAD FILES (with admin upload button) ──
+async function loadFiles(chapterId,chapterName,subjectId,subjectName){
+  state={view:'files',subjectId,subjectName,chapterId,chapterName};
+  setTitle('<i class="fas fa-file-alt"></i>',chapterName);
+  const adminBtns=IS_ADMIN?`<div style="display:flex;gap:.6rem;margin-bottom:1rem;flex-wrap:wrap">
+    <button class="btn-xs btn-b" onclick="showUploadModal('${esc(subjectId)}','${esc(chapterId)}')" style="padding:.5rem 1rem;font-size:.78rem"><i class="fas fa-upload"></i> Upload File</button>
+  </div>`:'';
+  document.getElementById('content').innerHTML=`
+    <div class="breadcrumb">
+      <span class="bc-link" onclick="loadSubjects()"><i class="fas fa-home"></i> Archive</span>
+      <span class="bc-sep">/</span>
+      <span class="bc-link" onclick="loadChapters('${esc(subjectId)}','${esc(subjectName)}')">${subjectName}</span>
+      <span class="bc-sep">/</span>
+      <span class="bc-current">${chapterName}</span>
+    </div>
+    ${adminBtns}
+    <div class="files-grid" id="files-grid">${loadingHTML('grid-column:1/-1')}</div>`;
+  try{
+    const d=await api(`/files?chapterId=${chapterId}`);
+    renderFileGrid(d.files||[],'files-grid',subjectId,subjectName,chapterId,chapterName);
+  }catch(e){
+    document.getElementById('files-grid').innerHTML=errHTML(e.message,'grid-column:1/-1');
+  }
+}
 
 // ── INIT ──
 loadSubjects();

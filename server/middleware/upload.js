@@ -67,7 +67,7 @@ const imageFilter = (req, file, cb) => {
 exports.uploadFile = multer({
   storage: fileStorage,
   fileFilter,
-  limits: { fileSize: 50 * 1024 * 1024 } // 50MB
+  limits: { fileSize: 500 * 1024 * 1024 } // 500MB
 });
 
 exports.uploadProfile = multer({
@@ -79,7 +79,7 @@ exports.uploadProfile = multer({
 exports.uploadBroadcast = multer({
   storage: fileStorage,
   fileFilter,
-  limits: { fileSize: 20 * 1024 * 1024 } // 20MB
+  limits: { fileSize: 100 * 1024 * 1024 } // 100MB
 });
 
 // Export cloudinary instance for use in controllers (delete files etc.)

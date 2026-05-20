@@ -272,8 +272,15 @@ exports.previewFile = async (req, res) => {
 
     if (!canView) return res.status(403).json({ success: false, message: 'Access denied' });
 
-    // Files are now on Cloudinary — redirect to the Cloudinary URL
-    res.redirect(file.path);
+    // Return the Cloudinary URL as JSON so the frontend can use it directly
+    // This avoids iframe cross-origin issues with PDF rendering
+    res.json({
+      success: true,
+      url: file.path,
+      mimetype: file.mimetype,
+      filename: file.originalname,
+      downloadAllowed: file.downloadAllowed
+    });
 
   } catch (error) {
     logger.error('Preview file error:', error);
