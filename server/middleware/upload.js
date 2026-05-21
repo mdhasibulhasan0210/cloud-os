@@ -1,33 +1,17 @@
-const multer = require('multer');
-const { CloudinaryStorage } = require('multer-storage-cloudinary');
+// Upload middleware — now uses Backblaze B2 for files, Cloudinary for profile pictures
+const b2 = require('../utils/b2Storage');
 const cloudinary = require('cloudinary').v2;
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const multer = require('multer');
 
-// Configure Cloudinary
+// Configure Cloudinary (profile pictures only)
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
-// Storage for general files (PDFs, docs, images)
-const fileStorage = new CloudinaryStorage({
-  cloudinary,
-  params: async (req, file) => {
-    const isImage = file.mimetype.startsWith('image/');
-    // PDFs and docs use 'raw' resource type — 100MB limit, no image processing
-    const resourceType = isImage ? 'image' : 'raw';
-    return {
-      folder: 'cloud-os/uploads',
-      resource_type: resourceType,
-      type: 'upload', // ensures public access
-      access_mode: 'public',
-      public_id: `${Date.now()}-${Math.round(Math.random() * 1e9)}-${file.originalname.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_')}`,
-      ...(isImage && { transformation: [{ quality: 'auto' }] })
-    };
-  }
-});
-
-// Storage for profile pictures
+// Profile picture storage — still uses Cloudinary (small images, no size issue)
 const profileStorage = new CloudinaryStorage({
   cloudinary,
   params: {
@@ -39,50 +23,19 @@ const profileStorage = new CloudinaryStorage({
   }
 });
 
-// File filter for documents + images
-const fileFilter = (req, file, cb) => {
-  const allowedTypes = [
-    'application/pdf',
-    'image/jpeg', 'image/jpg', 'image/png', 'image/gif',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'application/vnd.ms-excel',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-  ];
-  if (allowedTypes.includes(file.mimetype)) {
-    cb(null, true);
-  } else {
-    cb(new Error('Invalid file type. Only PDF, images, and documents allowed.'), false);
-  }
-};
+// File uploads — use B2 (memory storage, uploaded in controller)
+exports.uploadFile     = b2.uploadFile;
+exports.uploadBroadcast = b2.uploadBroadcast;
 
-// File filter for images only
-const imageFilter = (req, file, cb) => {
-  const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
-  if (allowedTypes.includes(file.mimetype)) {
-    cb(null, true);
-  } else {
-    cb(new Error('Invalid file type. Only images allowed.'), false);
-  }
-};
-
-exports.uploadFile = multer({
-  storage: fileStorage,
-  fileFilter,
-  limits: { fileSize: 10 * 1024 * 1024 } // 10MB — Cloudinary free plan hard limit
-});
-
+// Profile pictures — still Cloudinary
 exports.uploadProfile = multer({
   storage: profileStorage,
-  fileFilter: imageFilter,
-  limits: { fileSize: 5 * 1024 * 1024 } // 5MB
+  fileFilter: (req, file, cb) => {
+    const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
+    if (allowed.includes(file.mimetype)) cb(null, true);
+    else cb(new Error('Only images allowed'), false);
+  },
+  limits: { fileSize: 5 * 1024 * 1024 }
 });
 
-exports.uploadBroadcast = multer({
-  storage: fileStorage,
-  fileFilter,
-  limits: { fileSize: 10 * 1024 * 1024 } // 10MB
-});
-
-// Export cloudinary instance for use in controllers (delete files etc.)
 exports.cloudinary = cloudinary;

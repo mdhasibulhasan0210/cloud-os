@@ -1,16 +1,15 @@
-const Joi = require('joi');
 const mongoose = require('mongoose');
 const User         = require('../models/User');
 const File         = require('../models/File');
 const Notification = require('../models/Notification');
 const logger = require('../utils/logger');
-const { generateThumbnail, deleteFromCloudinary } = require('../utils/thumbnailGenerator');
+const { uploadToB2, getSignedFileUrl, deleteFromB2 } = require('../utils/b2Storage');
 
 function toOid(id) {
   try { return new mongoose.Types.ObjectId(id); } catch(e) { return id; }
 }
 
-// @desc    Upload file
+// @desc    Upload file to Backblaze B2
 exports.uploadFile = async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
@@ -19,14 +18,15 @@ exports.uploadFile = async (req, res) => {
     const validCategories = ['book', 'note', 'sheet', 'pdf', 'other'];
     if (category && !validCategories.includes(category)) return res.status(400).json({ success: false, message: 'Invalid category' });
 
-    const fileUrl = req.file.path;
-    const thumbnailUrl = generateThumbnail(fileUrl, req.file.mimetype);
+    // Upload buffer to B2
+    const { key, url } = await uploadToB2(req.file.buffer, req.file.originalname, req.file.mimetype);
+
     const status = req.user.role === 'admin' ? 'approved' : 'pending';
 
     const fileDoc = {
-      filename: req.file.filename,
+      filename: key,           // B2 key (used for deletion/signed URL)
       originalname: req.file.originalname,
-      path: fileUrl,
+      path: url,               // B2 public URL (used as reference)
       mimetype: req.file.mimetype,
       size: req.file.size,
       category: category || 'other',
@@ -36,7 +36,8 @@ exports.uploadFile = async (req, res) => {
       status,
       downloadAllowed: true,
       sharedWith: [],
-      thumbnailPath: thumbnailUrl
+      thumbnailPath: '/assets/images/default-pdf-thumb.jpg',
+      storageType: 'b2'        // mark as B2 storage
     };
 
     if (req.user.role === 'admin' && !isPersonal) {
@@ -45,7 +46,7 @@ exports.uploadFile = async (req, res) => {
     }
 
     const file = await File.create(fileDoc);
-    logger.info(`File uploaded: ${req.file.originalname} by ${req.user.email}`);
+    logger.info(`File uploaded to B2: ${req.file.originalname} by ${req.user.email}`);
 
     if (req.user.role !== 'admin') {
       const admin = await User.findOne({ role: 'admin' });
@@ -61,7 +62,7 @@ exports.uploadFile = async (req, res) => {
     });
   } catch (error) {
     logger.error('Upload file error:', error);
-    res.status(500).json({ success: false, message: 'Server error during upload' });
+    res.status(500).json({ success: false, message: error.message || 'Server error during upload' });
   }
 };
 
@@ -134,6 +135,33 @@ exports.getFile = async (req, res) => {
   }
 };
 
+// @desc    Preview file — returns signed URL for B2 or direct URL for Cloudinary
+exports.previewFile = async (req, res) => {
+  try {
+    const file = await File.findById(req.params.id);
+    if (!file) return res.status(404).json({ success: false, message: 'File not found' });
+
+    const canView = req.user.role === 'admin' ||
+      file.owner?.toString() === req.user.id ||
+      (file.sharedWith || []).some(id => id.toString() === req.user.id) ||
+      (file.status === 'approved' && file.subjectId);
+
+    if (!canView) return res.status(403).json({ success: false, message: 'Access denied' });
+
+    let url = file.path;
+
+    // For B2 private files, generate a signed URL (valid 1 hour)
+    if (file.storageType === 'b2' && file.filename) {
+      url = await getSignedFileUrl(file.filename, 3600);
+    }
+
+    res.json({ success: true, url, mimetype: file.mimetype, filename: file.originalname, downloadAllowed: file.downloadAllowed });
+  } catch (error) {
+    logger.error('Preview file error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
 // @desc    Update file
 exports.updateFile = async (req, res) => {
   try {
@@ -163,33 +191,20 @@ exports.deleteFile = async (req, res) => {
     if (!file) return res.status(404).json({ success: false, message: 'File not found' });
     if (req.user.role !== 'admin' && file.owner?.toString() !== req.user.id) return res.status(403).json({ success: false, message: 'Access denied' });
 
-    const resourceType = file.mimetype && file.mimetype.startsWith('image/') ? 'image' : 'raw';
-    await deleteFromCloudinary(file.path, resourceType);
+    // Delete from B2 or Cloudinary
+    if (file.storageType === 'b2' && file.filename) {
+      await deleteFromB2(file.filename);
+    } else if (file.path && file.path.includes('cloudinary')) {
+      const { deleteFromCloudinary } = require('../utils/thumbnailGenerator');
+      const resourceType = file.mimetype && file.mimetype.startsWith('image/') ? 'image' : 'raw';
+      await deleteFromCloudinary(file.path, resourceType);
+    }
+
     await File.findByIdAndDelete(req.params.id);
     logger.info(`File deleted: ${req.params.id}`);
     res.json({ success: true, message: 'File deleted successfully' });
   } catch (error) {
     logger.error('Delete file error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-
-// @desc    Preview file — returns Cloudinary URL
-exports.previewFile = async (req, res) => {
-  try {
-    const file = await File.findById(req.params.id);
-    if (!file) return res.status(404).json({ success: false, message: 'File not found' });
-
-    const canView = req.user.role === 'admin' ||
-      file.owner?.toString() === req.user.id ||
-      (file.sharedWith || []).some(id => id.toString() === req.user.id) ||
-      (file.status === 'approved' && file.subjectId);
-
-    if (!canView) return res.status(403).json({ success: false, message: 'Access denied' });
-
-    res.json({ success: true, url: file.path, mimetype: file.mimetype, filename: file.originalname, downloadAllowed: file.downloadAllowed });
-  } catch (error) {
-    logger.error('Preview file error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
@@ -253,8 +268,11 @@ exports.rejectFile = async (req, res) => {
   try {
     const file = await File.findById(req.params.id);
     if (!file) return res.status(404).json({ success: false, message: 'File not found' });
-    const resourceType = file.mimetype && file.mimetype.startsWith('image/') ? 'image' : 'raw';
-    await deleteFromCloudinary(file.path, resourceType);
+
+    if (file.storageType === 'b2' && file.filename) {
+      await deleteFromB2(file.filename);
+    }
+
     await File.findByIdAndDelete(req.params.id);
     await Notification.create({ userId: file.uploadedBy, message: `Your file "${file.originalname}" was not approved`, type: 'approval', read: false });
     res.json({ success: true, message: 'File rejected and deleted' });
