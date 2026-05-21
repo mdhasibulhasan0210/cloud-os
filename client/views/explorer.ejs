@@ -761,59 +761,23 @@ async function openPdfViewer(fileId,filename){
     const lurl=data.url.toLowerCase();
     const isPdf=lname.endsWith('.pdf')||(data.mimetype&&data.mimetype.includes('pdf'))||lurl.includes('.pdf');
 
-    if(isPdf && typeof pdfjsLib !== 'undefined'){
-      // Use PDF.js — load URL directly (PDF.js handles CORS with withCredentials:false)
-      try{
-        const loadingTask = pdfjsLib.getDocument({
-          url: data.url,
-          withCredentials: false,
-          cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
-          cMapPacked: true
-        });
-        const pdfDoc = await loadingTask.promise;
-        const totalPages = pdfDoc.numPages;
-        let currentPage = 1;
-
-        document.getElementById('pdf-page-info').textContent=`1 / ${totalPages}`;
-
-        // Render function
-        async function renderPage(num){
-          const page = await pdfDoc.getPage(num);
-          const bodyW = document.getElementById('pdf-body').clientWidth - 20;
-          const viewport = page.getViewport({scale:1});
-          const scale = Math.min(bodyW / viewport.width, 2);
-          const scaledViewport = page.getViewport({scale});
-          canvas.width = scaledViewport.width;
-          canvas.height = scaledViewport.height;
-          canvas.style.display='block';
-          canvas.style.margin='10px auto';
-          loadingEl.style.display='none';
-          await page.render({canvasContext:canvas.getContext('2d'), viewport:scaledViewport}).promise;
-          document.getElementById('pdf-page-info').textContent=`${num} / ${totalPages}`;
-        }
-
-        await renderPage(1);
-
-        // Override prev/next buttons
-        document.getElementById('pdf-prev').onclick=async()=>{
-          if(currentPage>1){currentPage--;await renderPage(currentPage);}
-        };
-        document.getElementById('pdf-next').onclick=async()=>{
-          if(currentPage<totalPages){currentPage++;await renderPage(currentPage);}
-        };
-
-      }catch(pdfErr){
-        console.warn('PDF.js failed:', pdfErr.message);
-        // Show open in new tab as fallback
-        loadingEl.innerHTML=`<i class="fas fa-exclamation-circle" style="font-size:2rem;color:#ef4444"></i><br><span style="margin-top:.5rem">Preview unavailable.</span><br><a href="${data.url}" target="_blank" style="color:var(--green);margin-top:.5rem;display:inline-block">📄 Open PDF in new tab</a>`;
-      }
-    } else {
-      // Non-PDF: show in iframe
+    if(isPdf){
+      // Use iframe with signed URL — works perfectly with B2 signed URLs
+      // PDF.js has CORS issues with B2, iframe works natively
       const iframe=document.getElementById('pdf-iframe');
       iframe.src=data.url;
       iframe.style.display='block';
-      loadingEl.style.display='none';
-    }
+      canvas.style.display='none';
+      let loaded=false;
+      iframe.onload=()=>{
+        if(loaded)return; loaded=true;
+        loadingEl.style.display='none';
+        document.getElementById('pdf-page-info').textContent='Loaded';
+      };
+      setTimeout(()=>{
+        if(!loaded){loaded=true;loadingEl.style.display='none';iframe.style.display='block';document.getElementById('pdf-page-info').textContent='Loaded';}
+      },8000);
+    } else {
 
   }catch(e){
     loadingEl.innerHTML=`<i class="fas fa-exclamation-circle" style="font-size:2rem;color:#ef4444"></i><span>${e.message||'Failed to load'} — <a href="${pdfDownloadUrl||'#'}" target="_blank" style="color:var(--green)">Open in new tab</a></span>`;

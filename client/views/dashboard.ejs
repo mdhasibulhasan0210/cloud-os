@@ -326,20 +326,12 @@ pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/p
 let _dashPdfDoc=null, _dashPdfPage=1;
 
 async function renderDashPdf(url, filename){
-  try{
-    const loadingTask = pdfjsLib.getDocument({
-      url: url,
-      withCredentials: false,
-      cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
-      cMapPacked: true
-    });
-    _dashPdfDoc = await loadingTask.promise;
-    _dashPdfPage = 1;
-    await _renderDashPage(_dashPdfPage);
-  }catch(e){
-    const area=document.getElementById('pdf-render-area');
-    if(area) area.innerHTML=`<div style="color:#ef4444;padding:2rem;text-align:center"><i class="fas fa-exclamation-circle" style="font-size:2rem;margin-bottom:.5rem;display:block"></i>Failed to load PDF.<br><a href="${url}" target="_blank" style="color:#00ff88;margin-top:.5rem;display:inline-block">📄 Open in new tab</a></div>`;
-  }
+  // Use iframe — works with B2 signed URLs, no CORS issues
+  const area=document.getElementById('pdf-render-area');
+  if(!area) return;
+  area.innerHTML=`<iframe src="${url}" style="width:100%;height:100%;border:none;min-height:75vh;display:block;border-radius:0 0 10px 10px"></iframe>`;
+  const info=document.getElementById('pdf-dash-info');
+  if(info) info.textContent='PDF loaded';
 }
 
 async function _renderDashPage(num){
