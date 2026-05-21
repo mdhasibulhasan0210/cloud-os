@@ -73,6 +73,7 @@ app.use('/api/broadcasts', require('./routes/broadcasts'));
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/results', require('./routes/results'));
+app.use('/api/subfolders', require('./routes/subfolders'));
 
 // View Routes
 const { protect, adminOnly, adminOrModerator } = require('./middleware/auth');

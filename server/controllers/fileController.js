@@ -14,7 +14,7 @@ exports.uploadFile = async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
 
-    const { subjectId, chapterId, category, description, isPersonal } = req.body;
+    const { subjectId, chapterId, subFolderId, category, description, isPersonal } = req.body;
     const validCategories = ['book', 'note', 'sheet', 'pdf', 'other'];
     if (category && !validCategories.includes(category)) return res.status(400).json({ success: false, message: 'Invalid category' });
 
@@ -44,6 +44,7 @@ exports.uploadFile = async (req, res) => {
     if (req.user.role === 'admin' && !isPersonal) {
       if (subjectId) fileDoc.subjectId = toOid(subjectId);
       if (chapterId) fileDoc.chapterId = toOid(chapterId);
+      if (subFolderId) fileDoc.subFolderId = toOid(subFolderId);
     }
 
     const file = await File.create(fileDoc);

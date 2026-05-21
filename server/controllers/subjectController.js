@@ -15,7 +15,7 @@ function toOid(id) {
 // @desc    Get all subjects
 exports.getAllSubjects = async (req, res) => {
   try {
-    const subjects = await Subject.find({}).sort({ name: 1 });
+    const subjects = await Subject.find({}).sort({ createdAt: 1 }); // creation order (oldest first)
     const subjectsWithCounts = await Promise.all(subjects.map(async (s) => {
       const [chapterCount, fileCount] = await Promise.all([
         Chapter.countDocuments({ subjectId: s._id }),
