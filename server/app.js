@@ -143,6 +143,20 @@ app.use((req, res) => {
 
 // Error handler
 app.use((err, req, res, next) => {
+  // Handle multer file size error
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(400).json({
+      success: false,
+      message: 'File too large. Maximum file size is 10MB. Please compress your file and try again.'
+    });
+  }
+  // Handle Cloudinary size error
+  if (err.message && err.message.includes('File size too large')) {
+    return res.status(400).json({
+      success: false,
+      message: 'File too large for free storage. Maximum is 10MB. Please compress your PDF and try again.'
+    });
+  }
   console.error('Error:', err);
   res.status(err.status || 500).json({
     success: false,

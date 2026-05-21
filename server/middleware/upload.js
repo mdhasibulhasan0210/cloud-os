@@ -69,7 +69,7 @@ const imageFilter = (req, file, cb) => {
 exports.uploadFile = multer({
   storage: fileStorage,
   fileFilter,
-  limits: { fileSize: 100 * 1024 * 1024 } // 100MB (Cloudinary raw free plan limit)
+  limits: { fileSize: 10 * 1024 * 1024 } // 10MB — Cloudinary free plan hard limit
 });
 
 exports.uploadProfile = multer({
@@ -81,7 +81,7 @@ exports.uploadProfile = multer({
 exports.uploadBroadcast = multer({
   storage: fileStorage,
   fileFilter,
-  limits: { fileSize: 50 * 1024 * 1024 } // 50MB
+  limits: { fileSize: 10 * 1024 * 1024 } // 10MB
 });
 
 // Export cloudinary instance for use in controllers (delete files etc.)
