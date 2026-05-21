@@ -133,6 +133,44 @@ exports.deleteResult = async (req, res) => {
   }
 };
 
+// @desc    Download backup (owner only)
+exports.downloadBackup = async (req, res) => {
+  try {
+    const [users, subjects, chapters, files, broadcasts, results, settings] = await Promise.all([
+      User.find({}, '-passwordHash').lean(),
+      Subject.find({}).lean(),
+      Chapter.find({}).lean(),
+      File.find({}).lean(),
+      Broadcast.find({}).lean(),
+      Result.find({}).lean(),
+      Setting.find({}).lean()
+    ]);
+    const backup = {
+      exportedAt: new Date().toISOString(),
+      exportedBy: req.user.email,
+      version: '1.0',
+      data: {
+        users: users.map(u => ({ ...u, _id: u._id.toString() })),
+        subjects: subjects.map(s => ({ ...s, _id: s._id.toString() })),
+        chapters: chapters.map(c => ({ ...c, _id: c._id.toString(), subjectId: c.subjectId?.toString() })),
+        files: files.map(f => ({ id: f._id.toString(), originalname: f.originalname, path: f.path, mimetype: f.mimetype, size: f.size, category: f.category, description: f.description, status: f.status, storageType: f.storageType, createdAt: f.createdAt })),
+        broadcasts: broadcasts.map(b => ({ ...b, _id: b._id.toString() })),
+        results: results.map(r => ({ ...r, _id: r._id.toString() })),
+        settings
+      },
+      summary: { totalUsers: users.length, totalFiles: files.length, totalSubjects: subjects.length, totalChapters: chapters.length, totalStorageMB: (files.reduce((t, f) => t + (f.size || 0), 0) / (1024 * 1024)).toFixed(2) }
+    };
+    const filename = `cloudos-backup-${new Date().toISOString().split('T')[0]}.json`;
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.json(backup);
+    logger.info(`Backup downloaded by ${req.user.email}`);
+  } catch (error) {
+    logger.error('Backup error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
 // @desc    Get recent activity
 exports.getRecentActivity = async (req, res) => {
   try {

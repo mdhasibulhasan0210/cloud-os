@@ -272,7 +272,7 @@ tr:hover td{background:rgba(0,255,136,0.04)}
          onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMjAiIGZpbGw9IiMwNjRlM2IiLz48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjE2IiBmaWxsPSIjMDBmZjg4IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIj5NSDwvdGV4dD48L3N2Zz4='">
     <div>
       <div class="sidebar-name" id="sb-name"><%= user.username %></div>
-      <div class="sidebar-role"><%= user.role === 'admin' ? 'System Admin' : 'Moderator' %></div>
+      <div class="sidebar-role"><%= user.role === 'admin' ? 'System Admin' : user.role === 'owner' ? '👑 Owner' : 'Moderator' %></div>
     </div>
   </div>
 
@@ -307,6 +307,11 @@ tr:hover td{background:rgba(0,255,136,0.04)}
     <button class="nav-item" data-view="profile">
       <i class="fas fa-user-cog"></i> My Profile
     </button>
+    <% if(user.role === 'owner') { %>
+    <button class="nav-item" data-view="backup" style="color:#00ff88;border:1px solid rgba(0,255,136,.2);margin-top:.5rem">
+      <i class="fas fa-download"></i> Backup
+    </button>
+    <% } %>
   </nav>
 
   <div class="sidebar-footer">
@@ -339,8 +344,9 @@ tr:hover td{background:rgba(0,255,136,0.04)}
 <script>
 // Pass user role to JavaScript
 const currentUserRole = '<%= user.role %>';
-const isAdmin = currentUserRole === 'admin';
+const isAdmin = currentUserRole === 'admin' || currentUserRole === 'owner';
 const isModerator = currentUserRole === 'moderator';
+const isOwner = currentUserRole === 'owner';
 
 // ── SPACE CANVAS ──
 (function(){
@@ -433,7 +439,7 @@ function loadView(v){
     overview:viewOverview,users:viewUsers,pending:viewPending,
     subjects:viewSubjects,allfiles:viewAllFiles,broadcasts:viewBroadcasts,
     results:viewResults,messages:viewMessages,notifications:viewNotifications,
-    profile:viewProfile
+    profile:viewProfile,backup:viewBackup
   };
   
   if(!views[v]) return;
@@ -505,7 +511,7 @@ async function viewUsers(){
     const rows=d.users.map(u=>{
       // Moderators can only see admins and moderators, not edit them
       const canEdit = isAdmin || (isModerator && u.role !== 'admin' && u.role !== 'moderator');
-      const showActions = u.role !== 'admin' && canEdit;
+      const showActions = u.role !== 'owner' && canEdit || (isOwner && u.role !== 'owner');
       
       return `
       <tr>
@@ -561,10 +567,10 @@ async function doResetPassword(userId){
 }
 
 function showChangeRole(userId,username,currentRole){
-  const roles=['user','moderator','admin'];
+  // Owner can assign any role including owner; admin can only assign user/moderator
+  const roles = isOwner ? ['user','moderator','admin','owner'] : ['user','moderator'];
   openModal(`<div class="modal-header"><h3><i class="fas fa-user-tag" style="color:var(--green)"></i> Change Role</h3><button class="modal-close" onclick="closeModal()">×</button></div>
     <p style="font-size:.82rem;color:var(--muted);margin-bottom:1rem">Change role for <strong style="color:var(--text)">${username}</strong></p>
-    <p style="font-size:.75rem;color:#f59e0b;margin-bottom:1rem"><i class="fas fa-exclamation-triangle"></i> Note: You cannot change your own role or another admin's role.</p>
     <div class="form-group"><label class="form-label">Select Role</label>
       <select class="form-select" id="role-select">
         ${roles.map(r=>`<option value="${r}" ${r===currentRole?'selected':''}>${r.charAt(0).toUpperCase()+r.slice(1)}</option>`).join('')}
@@ -797,7 +803,7 @@ async function viewChapterFiles(chapterId,chapterName,subjectId,subjectName){
             <div class="table-card" style="padding:1rem;cursor:pointer;display:flex;align-items:center;justify-content:space-between"
                  onclick="viewSubFolderFiles('${sf.id}','${sf.name}','${chapterId}','${chapterName}','${subjectId}','${subjectName}')">
               <div style="display:flex;align-items:center;gap:.6rem">
-                <i class="fas fa-folder" style="color:#f59e0b;font-size:1.2rem"></i>
+                <i class="fas fa-folder" style="color:var(--green);font-size:1.2rem"></i>
                 <div>
                   <div style="font-weight:600;font-size:.85rem">${sf.name}</div>
                   <div style="font-size:.7rem;color:var(--muted)">${sf.fileCount} files</div>
@@ -1300,6 +1306,63 @@ function previewPic(input){
     reader.onload=e=>document.getElementById('prof-preview').src=e.target.result;
     reader.readAsDataURL(input.files[0]);
   }
+}
+
+// ── BACKUP (Owner only) ──
+async function viewBackup(){
+  const mc=document.getElementById('main-content');
+  mc.innerHTML=`<div class="section-header"><i class="fas fa-download" style="color:var(--green)"></i><h2>Backup & Export</h2></div>
+    <div class="table-card" style="padding:2rem;max-width:600px">
+      <h3 style="margin-bottom:1rem;font-size:1rem">📦 Download Full Backup</h3>
+      <p style="font-size:.85rem;color:var(--muted);margin-bottom:1.5rem;line-height:1.6">
+        Downloads a complete JSON backup of all your data including:<br>
+        ✅ All users (without passwords)<br>
+        ✅ All subjects & chapters<br>
+        ✅ All file metadata + download URLs<br>
+        ✅ All broadcasts & results<br>
+        ✅ Site settings
+      </p>
+      <div id="backup-stats" style="margin-bottom:1.5rem;padding:1rem;background:rgba(0,255,136,.04);border:1px solid var(--border);border-radius:8px">
+        <div style="color:var(--muted);font-size:.82rem">Loading stats...</div>
+      </div>
+      <button class="btn btn-green" onclick="downloadBackup()" style="padding:.7rem 2rem;font-size:.9rem">
+        <i class="fas fa-download"></i> Download Backup JSON
+      </button>
+      <p style="font-size:.72rem;color:var(--muted);margin-top:1rem">
+        ⚠️ This backup contains sensitive data. Keep it secure.
+      </p>
+    </div>`;
+
+  // Load stats
+  try{
+    const d=await api('/admin/stats');
+    const s=d.stats;
+    document.getElementById('backup-stats').innerHTML=`
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem;font-size:.82rem">
+        <div><div style="color:var(--green);font-size:1.2rem;font-weight:700">${s.users.total}</div><div style="color:var(--muted)">Users</div></div>
+        <div><div style="color:var(--green);font-size:1.2rem;font-weight:700">${s.files.total}</div><div style="color:var(--muted)">Files</div></div>
+        <div><div style="color:var(--green);font-size:1.2rem;font-weight:700">${s.storage.usedMB} MB</div><div style="color:var(--muted)">Storage</div></div>
+        <div><div style="color:var(--green);font-size:1.2rem;font-weight:700">${s.subjects}</div><div style="color:var(--muted)">Subjects</div></div>
+        <div><div style="color:var(--green);font-size:1.2rem;font-weight:700">${s.chapters}</div><div style="color:var(--muted)">Chapters</div></div>
+        <div><div style="color:var(--green);font-size:1.2rem;font-weight:700">${s.broadcasts}</div><div style="color:var(--muted)">Broadcasts</div></div>
+      </div>`;
+  }catch(e){}
+}
+
+async function downloadBackup(){
+  try{
+    toast('Preparing backup...');
+    const response=await fetch('/api/admin/backup',{credentials:'include'});
+    if(!response.ok)throw new Error('Backup failed');
+    const blob=await response.blob();
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download=`cloudos-backup-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);a.click();
+    URL.revokeObjectURL(url);document.body.removeChild(a);
+    toast('Backup downloaded successfully');
+  }catch(e){toast(e.message,'error');}
 }
 
 // ── INIT ──

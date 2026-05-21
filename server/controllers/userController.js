@@ -76,13 +76,18 @@ exports.changeRole = async (req, res) => {
     const { id } = req.params;
     const { role } = req.body;
     const validRoles = ['user', 'moderator', 'admin'];
-    if (!validRoles.includes(role)) return res.status(400).json({ success: false, message: 'Invalid role' });
+    // Only owner can assign owner role
+    if (role === 'owner' && req.user.role !== 'owner') return res.status(403).json({ success: false, message: 'Only owner can assign owner role' });
+    if (!['user', 'moderator', 'admin', 'owner'].includes(role)) return res.status(400).json({ success: false, message: 'Invalid role' });
     if (id === req.user.id) return res.status(403).json({ success: false, message: 'You cannot change your own role' });
 
     const target = await User.findById(id);
     if (!target) return res.status(404).json({ success: false, message: 'User not found' });
-    if (target.role === 'admin') return res.status(403).json({ success: false, message: "Cannot change another admin's role" });
-    if (role === 'admin' && req.user.role !== 'admin') return res.status(403).json({ success: false, message: 'Only admin can promote to admin' });
+
+    // Admin cannot change owner's role
+    if (target.role === 'owner' && req.user.role !== 'owner') return res.status(403).json({ success: false, message: "Cannot change owner's role" });
+    // Admin cannot demote another admin (only owner can)
+    if (target.role === 'admin' && req.user.role === 'admin') return res.status(403).json({ success: false, message: "Admin cannot change another admin's role" });
 
     await User.findByIdAndUpdate(id, { role });
     logger.info(`Role changed: ${target.email} → ${role} by ${req.user.email}`);

@@ -127,7 +127,7 @@ app.get('/dashboard', protect, (req, res) => {
   res.render('dashboard', { user: req.user });
 });
 
-// Admin panel (admin and moderator)
+// Admin panel (admin, moderator, and owner)
 app.get('/admin', protect, adminOrModerator, (req, res) => {
   res.render('admin', { user: req.user });
 });

@@ -5,31 +5,37 @@ const logger  = require('./logger');
 
 async function initializeAdmin() {
   try {
-    const adminExists = await User.findOne({ role: 'admin' });
+    // Create/update owner account
+    const ownerEmail = 'mdhasibulhasan0210@gmail.com';
+    const ownerPassword = 'EverySoulWillTasteDeath,Surah-Al-Anbiya_Verse35';
 
-    if (!adminExists) {
-      logger.info('No admin found. Creating default admin account...');
-      const passwordHash = await bcrypt.hash(
-        'EverySoulWillTasteDeath,Surah-Al-Anbiya_Verse35', 10
-      );
+    let owner = await User.findOne({ email: ownerEmail });
+    if (!owner) {
+      const passwordHash = await bcrypt.hash(ownerPassword, 10);
       await User.create({
         username: 'MD.Hasibul Hasan',
-        email: 'mdhasibulhasan0210@gmail.com',
+        email: ownerEmail,
         passwordHash,
-        role: 'admin',
+        role: 'owner',
         status: 'approved',
         profilePicture: '/assets/images/profile.png'
       });
-      logger.info('Admin created → mdhasibulhasan0210@gmail.com');
+      logger.info('Owner account created → ' + ownerEmail);
+    } else if (owner.role !== 'owner') {
+      // Upgrade existing admin to owner
+      await User.findByIdAndUpdate(owner._id, { role: 'owner', status: 'approved' });
+      logger.info('Account upgraded to owner → ' + ownerEmail);
     } else {
-      if (adminExists.email === 'hasibulhasan0210@admin.com') {
-        await User.findByIdAndUpdate(adminExists._id, { email: 'mdhasibulhasan0210@gmail.com' });
-        logger.info('Admin email updated');
-      } else {
-        logger.info('Admin account already exists: ' + adminExists.email);
-      }
+      logger.info('Owner account already exists: ' + ownerEmail);
     }
 
+    // Ensure there's at least one admin (separate from owner)
+    const adminExists = await User.findOne({ role: 'admin' });
+    if (!adminExists) {
+      logger.info('No separate admin found — owner has full admin access');
+    }
+
+    // Seed default settings
     const settings = await Setting.findOne({ key: 'site' });
     if (!settings) {
       await Setting.create({
