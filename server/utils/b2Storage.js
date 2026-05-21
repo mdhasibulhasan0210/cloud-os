@@ -13,10 +13,15 @@ let authExpiry = 0;
 
 async function ensureAuthorized() {
   if (b2Authorized && Date.now() < authExpiry) return;
-  await b2.authorize();
-  b2Authorized = true;
-  // B2 auth tokens expire after 24 hours
-  authExpiry = Date.now() + 23 * 60 * 60 * 1000;
+  try {
+    await b2.authorize();
+    b2Authorized = true;
+    authExpiry = Date.now() + 23 * 60 * 60 * 1000;
+  } catch (err) {
+    b2Authorized = false;
+    console.error('B2 auth failed:', err.response?.data || err.message);
+    throw new Error('B2 authorization failed: ' + (err.response?.data?.message || err.message));
+  }
 }
 
 /**
