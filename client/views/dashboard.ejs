@@ -320,7 +320,46 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 <div class="toast" id="toast"></div>
 
 <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
+pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+let _dashPdfDoc=null, _dashPdfPage=1;
+
+async function renderDashPdf(url, filename){
+  try{
+    const resp = await fetch(url);
+    const buf = await resp.arrayBuffer();
+    _dashPdfDoc = await pdfjsLib.getDocument({data:buf}).promise;
+    _dashPdfPage = 1;
+    await _renderDashPage(_dashPdfPage);
+  }catch(e){
+    const area=document.getElementById('pdf-render-area');
+    if(area) area.innerHTML=`<div style="color:#ef4444;padding:2rem;text-align:center"><i class="fas fa-exclamation-circle" style="font-size:2rem;margin-bottom:.5rem;display:block"></i>Failed to load PDF.<br><a href="${url}" target="_blank" style="color:#00ff88">Open in new tab</a></div>`;
+  }
+}
+
+async function _renderDashPage(num){
+  if(!_dashPdfDoc) return;
+  const area=document.getElementById('pdf-render-area');
+  if(!area) return;
+  const page = await _dashPdfDoc.getPage(num);
+  const areaW = area.clientWidth - 32;
+  const vp = page.getViewport({scale:1});
+  const scale = Math.min(areaW/vp.width, 2);
+  const scaledVp = page.getViewport({scale});
+  const canvas = document.createElement('canvas');
+  canvas.width=scaledVp.width; canvas.height=scaledVp.height;
+  canvas.style.cssText='border-radius:4px;box-shadow:0 2px 12px rgba(0,0,0,.5);max-width:100%';
+  area.innerHTML='';
+  area.appendChild(canvas);
+  await page.render({canvasContext:canvas.getContext('2d'),viewport:scaledVp}).promise;
+  const info=document.getElementById('pdf-dash-info');
+  if(info) info.textContent=`${num} / ${_dashPdfDoc.numPages}`;
+}
+
+async function dashPdfPrev(){if(_dashPdfDoc&&_dashPdfPage>1){_dashPdfPage--;await _renderDashPage(_dashPdfPage);}}
+async function dashPdfNext(){if(_dashPdfDoc&&_dashPdfPage<_dashPdfDoc.numPages){_dashPdfPage++;await _renderDashPage(_dashPdfPage);}}
+
 // ── SPACE CANVAS ──
 (function(){
   const c=document.getElementById('bg-canvas'),ctx=c.getContext('2d');
@@ -1004,6 +1043,7 @@ async function previewFile(fileId,filename,mimetype){
   const newTabBtn = `<a href="${fileUrl}" target="_blank" style="display:inline-flex;align-items:center;gap:.4rem;padding:.4rem .9rem;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:6px;color:var(--muted);font-size:.78rem;text-decoration:none"><i class="fas fa-external-link-alt"></i> Open Tab</a>`;
 
   if (isPdf) {
+    // Use PDF.js for reliable rendering — works with any Cloudinary URL
     openModal(`
       <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap;padding:.8rem 1rem;background:rgba(10,26,18,.95);border-bottom:1px solid var(--border);border-radius:12px 12px 0 0;flex-shrink:0">
         <h3 style="font-size:.82rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:55%;color:var(--green)"><i class="fas fa-file-pdf"></i> ${filename}</h3>
@@ -1012,9 +1052,16 @@ async function previewFile(fileId,filename,mimetype){
           <button onclick="closeModal()" style="background:rgba(239,68,68,.1);border:none;color:#ef4444;width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:.9rem;display:flex;align-items:center;justify-content:center">×</button>
         </div>
       </div>
-      <div style="flex:1;overflow:hidden;background:#1a1a1a">
-        <iframe src="${'https://docs.google.com/viewer?embedded=true&url='+encodeURIComponent(fileUrl)}" style="width:100%;height:100%;border:none;display:block"></iframe>
+      <div id="pdf-render-area" style="flex:1;overflow-y:auto;background:#1a1a1a;display:flex;flex-direction:column;align-items:center;padding:1rem;gap:.5rem">
+        <div id="pdf-dash-loading" style="color:#6b7280;padding:3rem;text-align:center"><div style="width:36px;height:36px;border:2px solid rgba(0,255,136,.12);border-top-color:#00ff88;border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 1rem"></div>Loading PDF...</div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:center;gap:.75rem;padding:.6rem;background:rgba(10,26,18,.95);border-top:1px solid var(--border);flex-shrink:0">
+        <button id="pdf-dash-prev" onclick="dashPdfPrev()" style="background:rgba(0,255,136,.08);border:1px solid rgba(0,255,136,.2);color:#00ff88;padding:.3rem .7rem;border-radius:5px;cursor:pointer;font-size:.78rem">◀ Prev</button>
+        <span id="pdf-dash-info" style="color:#6b7280;font-size:.78rem">— / —</span>
+        <button id="pdf-dash-next" onclick="dashPdfNext()" style="background:rgba(0,255,136,.08);border:1px solid rgba(0,255,136,.2);color:#00ff88;padding:.3rem .7rem;border-radius:5px;cursor:pointer;font-size:.78rem">Next ▶</button>
       </div>`, true);
+    // Render with PDF.js
+    renderDashPdf(fileUrl, filename);
   } else if (isImg) {
     openModal(`
       <div class="modal-hdr" style="display:flex;align-items:center;justify-content:space-between">

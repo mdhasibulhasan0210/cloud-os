@@ -377,6 +377,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
         <div class="pdf-spinner"></div>
         <span>Loading document...</span>
       </div>
+      <canvas id="pdf-canvas" style="display:none;max-width:100%;margin:0 auto;display:none"></canvas>
       <iframe class="pdf-iframe" id="pdf-iframe" style="display:none"></iframe>
     </div>
   </div>
@@ -448,7 +449,9 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
   </div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
+pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 // ── SPACE CANVAS ──
 (function(){
   const c=document.getElementById('bg-canvas'),ctx=c.getContext('2d');
@@ -732,8 +735,11 @@ async function openPdfViewer(fileId,filename){
   loadingEl.style.display='flex';
   loadingEl.innerHTML='<div class="pdf-spinner"></div><span>Loading document...</span>';
   document.getElementById('pdf-iframe').style.display='none';
+  const canvas=document.getElementById('pdf-canvas');
+  canvas.style.display='none';
   document.getElementById('pdf-overlay').classList.add('open');
   document.body.style.overflow='hidden';
+
   try{
     const data=await api(`/files/preview/${fileId}`);
     if(!data.success||!data.url) throw new Error('Could not get file URL');
@@ -749,36 +755,67 @@ async function openPdfViewer(fileId,filename){
         document.body.appendChild(a); a.click(); document.body.removeChild(a);
       };
     } else { dlBtn.style.display='none'; }
-
-    // Open-in-new-tab button
     document.getElementById('pdf-newtab-btn').onclick=()=>window.open(pdfDownloadUrl,'_blank');
 
-    const iframe=document.getElementById('pdf-iframe');
-
-    // Use Google Docs Viewer to bypass X-Frame-Options on Cloudinary PDFs
     const lname=filename.toLowerCase();
     const lurl=data.url.toLowerCase();
     const isPdf=lname.endsWith('.pdf')||(data.mimetype&&data.mimetype.includes('pdf'))||lurl.includes('.pdf');
 
-    if(isPdf){
-      // Google Docs Viewer renders PDFs from any public URL
-      const gdocsUrl='https://docs.google.com/viewer?embedded=true&url='+encodeURIComponent(data.url);
-      iframe.src=gdocsUrl;
+    if(isPdf && typeof pdfjsLib !== 'undefined'){
+      // Use PDF.js to render — works with any URL regardless of headers
+      try{
+        // Fetch PDF as ArrayBuffer to bypass CORS/content-type issues
+        const resp = await fetch(data.url);
+        const arrayBuffer = await resp.arrayBuffer();
+        const pdfDoc = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
+        const totalPages = pdfDoc.numPages;
+        let currentPage = 1;
+
+        document.getElementById('pdf-page-info').textContent=`1 / ${totalPages}`;
+
+        // Render function
+        async function renderPage(num){
+          const page = await pdfDoc.getPage(num);
+          const bodyW = document.getElementById('pdf-body').clientWidth - 20;
+          const viewport = page.getViewport({scale:1});
+          const scale = Math.min(bodyW / viewport.width, 2);
+          const scaledViewport = page.getViewport({scale});
+          canvas.width = scaledViewport.width;
+          canvas.height = scaledViewport.height;
+          canvas.style.display='block';
+          canvas.style.margin='10px auto';
+          loadingEl.style.display='none';
+          await page.render({canvasContext:canvas.getContext('2d'), viewport:scaledViewport}).promise;
+          document.getElementById('pdf-page-info').textContent=`${num} / ${totalPages}`;
+        }
+
+        await renderPage(1);
+
+        // Override prev/next buttons
+        document.getElementById('pdf-prev').onclick=async()=>{
+          if(currentPage>1){currentPage--;await renderPage(currentPage);}
+        };
+        document.getElementById('pdf-next').onclick=async()=>{
+          if(currentPage<totalPages){currentPage++;await renderPage(currentPage);}
+        };
+
+      }catch(pdfErr){
+        // Fallback to Google Docs Viewer if PDF.js fails
+        console.warn('PDF.js failed, falling back to Google Docs Viewer:', pdfErr);
+        const gdocsUrl='https://docs.google.com/viewer?embedded=true&url='+encodeURIComponent(data.url);
+        const iframe=document.getElementById('pdf-iframe');
+        iframe.src=gdocsUrl;
+        iframe.style.display='block';
+        loadingEl.style.display='none';
+      }
     } else {
+      // Non-PDF: show in iframe
+      const iframe=document.getElementById('pdf-iframe');
       iframe.src=data.url;
+      iframe.style.display='block';
+      loadingEl.style.display='none';
     }
 
-    let loaded=false;
-    iframe.onload=()=>{
-      if(loaded) return; loaded=true;
-      loadingEl.style.display='none';
-      iframe.style.display='block';
-      document.getElementById('pdf-page-info').textContent='Loaded';
-    };
-    // Google Docs Viewer can take up to 10s
-    setTimeout(()=>{
-      if(!loaded){ loaded=true; loadingEl.style.display='none'; iframe.style.display='block'; document.getElementById('pdf-page-info').textContent='Loaded';}
-    },10000);
   }catch(e){
     loadingEl.innerHTML=`<i class="fas fa-exclamation-circle" style="font-size:2rem;color:#ef4444"></i><span>${e.message||'Failed to load'} — <a href="${pdfDownloadUrl||'#'}" target="_blank" style="color:var(--green)">Open in new tab</a></span>`;
   }
@@ -788,6 +825,8 @@ function closePdf(e){
   if(e&&e.target!==document.getElementById('pdf-overlay')&&e.type==='click')return;
   document.getElementById('pdf-overlay').classList.remove('open');
   document.getElementById('pdf-iframe').src='';
+  const canvas=document.getElementById('pdf-canvas');
+  if(canvas){canvas.style.display='none';const ctx=canvas.getContext('2d');ctx.clearRect(0,0,canvas.width,canvas.height);}
   document.body.style.overflow='';
 }
 
