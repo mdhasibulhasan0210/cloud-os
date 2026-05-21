@@ -762,12 +762,15 @@ async function openPdfViewer(fileId,filename){
     const isPdf=lname.endsWith('.pdf')||(data.mimetype&&data.mimetype.includes('pdf'))||lurl.includes('.pdf');
 
     if(isPdf && typeof pdfjsLib !== 'undefined'){
-      // Use PDF.js to render — works with any URL regardless of headers
+      // Use PDF.js — load URL directly (PDF.js handles CORS with withCredentials:false)
       try{
-        // Fetch PDF as ArrayBuffer to bypass CORS/content-type issues
-        const resp = await fetch(data.url);
-        const arrayBuffer = await resp.arrayBuffer();
-        const pdfDoc = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
+        const loadingTask = pdfjsLib.getDocument({
+          url: data.url,
+          withCredentials: false,
+          cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
+          cMapPacked: true
+        });
+        const pdfDoc = await loadingTask.promise;
         const totalPages = pdfDoc.numPages;
         let currentPage = 1;
 
@@ -800,13 +803,9 @@ async function openPdfViewer(fileId,filename){
         };
 
       }catch(pdfErr){
-        // Fallback to Google Docs Viewer if PDF.js fails
-        console.warn('PDF.js failed, falling back to Google Docs Viewer:', pdfErr);
-        const gdocsUrl='https://docs.google.com/viewer?embedded=true&url='+encodeURIComponent(data.url);
-        const iframe=document.getElementById('pdf-iframe');
-        iframe.src=gdocsUrl;
-        iframe.style.display='block';
-        loadingEl.style.display='none';
+        console.warn('PDF.js failed:', pdfErr.message);
+        // Show open in new tab as fallback
+        loadingEl.innerHTML=`<i class="fas fa-exclamation-circle" style="font-size:2rem;color:#ef4444"></i><br><span style="margin-top:.5rem">Preview unavailable.</span><br><a href="${data.url}" target="_blank" style="color:var(--green);margin-top:.5rem;display:inline-block">📄 Open PDF in new tab</a>`;
       }
     } else {
       // Non-PDF: show in iframe

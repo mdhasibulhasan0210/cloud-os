@@ -14,21 +14,14 @@ const fileStorage = new CloudinaryStorage({
   cloudinary,
   params: async (req, file) => {
     const isImage = file.mimetype.startsWith('image/');
-    const isPdf = file.mimetype === 'application/pdf';
-    const isDoc = ['application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/vnd.ms-excel',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    ].includes(file.mimetype);
-
-    // Use 'raw' for PDFs and docs — bypasses Cloudinary's 10MB image limit
-    // Raw files support up to 100MB on free plan
+    // PDFs and docs use 'raw' resource type — 100MB limit, no image processing
     const resourceType = isImage ? 'image' : 'raw';
-
     return {
       folder: 'cloud-os/uploads',
       resource_type: resourceType,
-      public_id: `${Date.now()}-${Math.round(Math.random() * 1e9)}-${file.originalname.replace(/\.[^/.]+$/, '').replace(/\s+/g, '_')}`,
+      type: 'upload', // ensures public access
+      access_mode: 'public',
+      public_id: `${Date.now()}-${Math.round(Math.random() * 1e9)}-${file.originalname.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_')}`,
       ...(isImage && { transformation: [{ quality: 'auto' }] })
     };
   }
