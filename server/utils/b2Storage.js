@@ -6,11 +6,12 @@ const path = require('path');
 // Backblaze B2 S3-compatible client
 const s3 = new S3Client({
   endpoint: process.env.B2_ENDPOINT,
-  region: process.env.B2_REGION || 'us-east-005',
+  region: 'us-east-1', // AWS SDK requires a valid region format; B2 uses endpoint instead
   credentials: {
     accessKeyId: process.env.B2_KEY_ID,
     secretAccessKey: process.env.B2_APPLICATION_KEY
-  }
+  },
+  forcePathStyle: true // Required for B2 S3-compatible API
 });
 
 const BUCKET = process.env.B2_BUCKET_NAME;
