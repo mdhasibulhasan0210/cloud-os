@@ -1315,21 +1315,20 @@ async function viewBackup(){
     <div class="table-card" style="padding:2rem;max-width:600px">
       <h3 style="margin-bottom:1rem;font-size:1rem">📦 Download Full Backup</h3>
       <p style="font-size:.85rem;color:var(--muted);margin-bottom:1.5rem;line-height:1.6">
-        Downloads a complete JSON backup of all your data including:<br>
-        ✅ All users (without passwords)<br>
-        ✅ All subjects & chapters<br>
-        ✅ All file metadata + download URLs<br>
-        ✅ All broadcasts & results<br>
-        ✅ Site settings
+        Downloads a ZIP file with all uploaded files organized as:<br>
+        📁 <strong>Subject Name</strong> → 📁 <strong>Chapter Name</strong> → 📄 files<br><br>
+        ✅ All approved files from B2 storage<br>
+        ✅ Organized by subject and chapter folders<br>
+        ✅ Includes _manifest.json with structure info
       </p>
       <div id="backup-stats" style="margin-bottom:1.5rem;padding:1rem;background:rgba(0,255,136,.04);border:1px solid var(--border);border-radius:8px">
         <div style="color:var(--muted);font-size:.82rem">Loading stats...</div>
       </div>
       <button class="btn btn-green" onclick="downloadBackup()" style="padding:.7rem 2rem;font-size:.9rem">
-        <i class="fas fa-download"></i> Download Backup JSON
+        <i class="fas fa-download"></i> Download Backup ZIP
       </button>
       <p style="font-size:.72rem;color:var(--muted);margin-top:1rem">
-        ⚠️ This backup contains sensitive data. Keep it secure.
+        ⚠️ ZIP contains all uploaded files organized by Subject → Chapter folders. May take a few minutes for large archives.
       </p>
     </div>`;
 
@@ -1351,17 +1350,17 @@ async function viewBackup(){
 
 async function downloadBackup(){
   try{
-    toast('Preparing backup...');
+    toast('Preparing ZIP backup... This may take a few minutes.');
     const response=await fetch('/api/admin/backup',{credentials:'include'});
-    if(!response.ok)throw new Error('Backup failed');
+    if(!response.ok){const d=await response.json();throw new Error(d.message||'Backup failed');}
     const blob=await response.blob();
     const url=URL.createObjectURL(blob);
     const a=document.createElement('a');
     a.href=url;
-    a.download=`cloudos-backup-${new Date().toISOString().split('T')[0]}.json`;
+    a.download=`cloudos-backup-${new Date().toISOString().split('T')[0]}.zip`;
     document.body.appendChild(a);a.click();
     URL.revokeObjectURL(url);document.body.removeChild(a);
-    toast('Backup downloaded successfully');
+    toast('Backup ZIP downloaded successfully');
   }catch(e){toast(e.message,'error');}
 }
 

@@ -133,41 +133,104 @@ exports.deleteResult = async (req, res) => {
   }
 };
 
-// @desc    Download backup (owner only)
+// @desc    Download backup (owner only) — ZIP with files organized by Subject/Chapter
 exports.downloadBackup = async (req, res) => {
+  const archiver = require('archiver');
+  const https = require('https');
+  const http = require('http');
+
   try {
-    const [users, subjects, chapters, files, broadcasts, results, settings] = await Promise.all([
-      User.find({}, '-passwordHash').lean(),
-      Subject.find({}).lean(),
-      Chapter.find({}).lean(),
-      File.find({}).lean(),
-      Broadcast.find({}).lean(),
-      Result.find({}).lean(),
-      Setting.find({}).lean()
+    const [subjects, chapters, files] = await Promise.all([
+      Subject.find({}).sort({ createdAt: 1 }).lean(),
+      Chapter.find({}).sort({ createdAt: 1 }).lean(),
+      File.find({ status: 'approved' }).lean()
     ]);
-    const backup = {
-      exportedAt: new Date().toISOString(),
-      exportedBy: req.user.email,
-      version: '1.0',
-      data: {
-        users: users.map(u => ({ ...u, _id: u._id.toString() })),
-        subjects: subjects.map(s => ({ ...s, _id: s._id.toString() })),
-        chapters: chapters.map(c => ({ ...c, _id: c._id.toString(), subjectId: c.subjectId?.toString() })),
-        files: files.map(f => ({ id: f._id.toString(), originalname: f.originalname, path: f.path, mimetype: f.mimetype, size: f.size, category: f.category, description: f.description, status: f.status, storageType: f.storageType, createdAt: f.createdAt })),
-        broadcasts: broadcasts.map(b => ({ ...b, _id: b._id.toString() })),
-        results: results.map(r => ({ ...r, _id: r._id.toString() })),
-        settings
-      },
-      summary: { totalUsers: users.length, totalFiles: files.length, totalSubjects: subjects.length, totalChapters: chapters.length, totalStorageMB: (files.reduce((t, f) => t + (f.size || 0), 0) / (1024 * 1024)).toFixed(2) }
-    };
-    const filename = `cloudos-backup-${new Date().toISOString().split('T')[0]}.json`;
-    res.setHeader('Content-Type', 'application/json');
+
+    // Build lookup maps
+    const subjectMap = {};
+    subjects.forEach(s => { subjectMap[s._id.toString()] = s.name.replace(/[/\\?%*:|"<>]/g, '-'); });
+    const chapterMap = {};
+    chapters.forEach(c => { chapterMap[c._id.toString()] = { name: c.name.replace(/[/\\?%*:|"<>]/g, '-'), subjectId: c.subjectId?.toString() }; });
+
+    const filename = `cloudos-backup-${new Date().toISOString().split('T')[0]}.zip`;
+    res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.json(backup);
-    logger.info(`Backup downloaded by ${req.user.email}`);
+
+    const archive = archiver('zip', { zlib: { level: 6 } });
+    archive.on('error', err => { logger.error('Archive error:', err); });
+    archive.pipe(res);
+
+    // Helper to fetch a URL and return a stream
+    function fetchStream(url) {
+      return new Promise((resolve, reject) => {
+        const client = url.startsWith('https') ? https : http;
+        client.get(url, res => {
+          if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+            // Follow redirect
+            fetchStream(res.headers.location).then(resolve).catch(reject);
+          } else if (res.statusCode === 200) {
+            resolve(res);
+          } else {
+            reject(new Error(`HTTP ${res.statusCode} for ${url}`));
+          }
+        }).on('error', reject);
+      });
+    }
+
+    // Add each file to the ZIP in the correct folder path
+    for (const file of files) {
+      if (!file.path) continue;
+
+      let folderPath = 'Uncategorized';
+
+      if (file.chapterId) {
+        const ch = chapterMap[file.chapterId.toString()];
+        if (ch) {
+          const subjName = ch.subjectId ? (subjectMap[ch.subjectId] || 'Unknown Subject') : 'Unknown Subject';
+          folderPath = `${subjName}/${ch.name}`;
+        }
+      } else if (file.subjectId) {
+        const subjName = subjectMap[file.subjectId.toString()] || 'Unknown Subject';
+        folderPath = subjName;
+      }
+
+      const safeFilename = file.originalname.replace(/[/\\?%*:|"<>]/g, '-');
+      const zipPath = `${folderPath}/${safeFilename}`;
+
+      try {
+        // For B2 files, generate signed URL first
+        let downloadUrl = file.path;
+        if (file.storageType === 'b2' && file.filename) {
+          const { getSignedFileUrl } = require('../utils/b2Storage');
+          downloadUrl = await getSignedFileUrl(file.filename, 3600);
+        }
+
+        const stream = await fetchStream(downloadUrl);
+        archive.append(stream, { name: zipPath });
+      } catch (fileErr) {
+        logger.warn(`Skipping file ${file.originalname}: ${fileErr.message}`);
+        // Add a placeholder text file instead
+        archive.append(`File unavailable: ${file.path}`, { name: `${folderPath}/${safeFilename}.unavailable.txt` });
+      }
+    }
+
+    // Add a manifest JSON
+    const manifest = {
+      exportedAt: new Date().toISOString(),
+      totalFiles: files.length,
+      subjects: subjects.map(s => ({ name: s.name, id: s._id.toString() })),
+      chapters: chapters.map(c => ({ name: c.name, subjectId: c.subjectId?.toString(), id: c._id.toString() }))
+    };
+    archive.append(JSON.stringify(manifest, null, 2), { name: '_manifest.json' });
+
+    await archive.finalize();
+    logger.info(`ZIP backup downloaded by ${req.user.email} — ${files.length} files`);
+
   } catch (error) {
     logger.error('Backup error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, message: 'Backup failed: ' + error.message });
+    }
   }
 };
 
