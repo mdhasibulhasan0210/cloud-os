@@ -8,8 +8,6 @@ const Message      = require('../models/Message');
 const Setting      = require('../models/Setting');
 const logger = require('../utils/logger');
 const archiver = require('archiver');
-const https = require('https');
-const http = require('http');
 
 // @desc    Get admin dashboard stats
 exports.getStats = async (req, res) => {
@@ -136,9 +134,11 @@ exports.deleteResult = async (req, res) => {
   }
 };
 
-// @desc    Download backup (owner only) — ZIP with files organized by Subject/Chapter
+// @desc    Download backup (owner only) — ZIP with download links organized by Subject/Chapter
 exports.downloadBackup = async (req, res) => {
   try {
+    const { getSignedFileUrl } = require('../utils/b2Storage');
+
     const [subjects, chapters, files] = await Promise.all([
       Subject.find({}).sort({ createdAt: 1 }).lean(),
       Chapter.find({}).sort({ createdAt: 1 }).lean(),
@@ -147,83 +147,84 @@ exports.downloadBackup = async (req, res) => {
 
     // Build lookup maps
     const subjectMap = {};
-    subjects.forEach(s => { subjectMap[s._id.toString()] = s.name.replace(/[/\\?%*:|"<>]/g, '-'); });
+    subjects.forEach(s => { subjectMap[s._id.toString()] = s.name; });
     const chapterMap = {};
-    chapters.forEach(c => { chapterMap[c._id.toString()] = { name: c.name.replace(/[/\\?%*:|"<>]/g, '-'), subjectId: c.subjectId?.toString() }; });
+    chapters.forEach(c => { chapterMap[c._id.toString()] = { name: c.name, subjectId: c.subjectId?.toString() }; });
 
-    const filename = `cloudos-backup-${new Date().toISOString().split('T')[0]}.zip`;
-    res.setHeader('Content-Type', 'application/zip');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-
-    const archive = archiver('zip', { zlib: { level: 6 } });
-    archive.on('error', err => { logger.error('Archive error:', err); });
-    archive.pipe(res);
-
-    // Helper to fetch a URL and return a stream
-    function fetchStream(url) {
-      return new Promise((resolve, reject) => {
-        const client = url.startsWith('https') ? https : http;
-        client.get(url, res => {
-          if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-            // Follow redirect
-            fetchStream(res.headers.location).then(resolve).catch(reject);
-          } else if (res.statusCode === 200) {
-            resolve(res);
-          } else {
-            reject(new Error(`HTTP ${res.statusCode} for ${url}`));
-          }
-        }).on('error', reject);
-      });
-    }
-
-    // Add each file to the ZIP in the correct folder path
+    // Group files by subject/chapter
+    const structure = {};
     for (const file of files) {
-      if (!file.path) continue;
-
-      let folderPath = 'Uncategorized';
+      let subjectName = 'Uncategorized';
+      let chapterName = '';
 
       if (file.chapterId) {
         const ch = chapterMap[file.chapterId.toString()];
         if (ch) {
-          const subjName = ch.subjectId ? (subjectMap[ch.subjectId] || 'Unknown Subject') : 'Unknown Subject';
-          folderPath = `${subjName}/${ch.name}`;
+          subjectName = ch.subjectId ? (subjectMap[ch.subjectId] || 'Unknown Subject') : 'Unknown Subject';
+          chapterName = ch.name;
         }
       } else if (file.subjectId) {
-        const subjName = subjectMap[file.subjectId.toString()] || 'Unknown Subject';
-        folderPath = subjName;
+        subjectName = subjectMap[file.subjectId.toString()] || 'Unknown Subject';
       }
 
-      const safeFilename = file.originalname.replace(/[/\\?%*:|"<>]/g, '-');
-      const zipPath = `${folderPath}/${safeFilename}`;
+      const key = `${subjectName}${chapterName ? ' > ' + chapterName : ''}`;
+      if (!structure[key]) structure[key] = [];
 
-      try {
-        // For B2 files, generate signed URL first
-        let downloadUrl = file.path;
-        if (file.storageType === 'b2' && file.filename) {
-          const { getSignedFileUrl } = require('../utils/b2Storage');
-          downloadUrl = await getSignedFileUrl(file.filename, 3600);
+      // Generate signed URL for B2 files
+      let downloadUrl = file.path;
+      if (file.storageType === 'b2' && file.filename) {
+        try {
+          downloadUrl = await getSignedFileUrl(file.filename, 7 * 24 * 3600); // 7 days
+        } catch(e) {
+          downloadUrl = file.path;
         }
-
-        const stream = await fetchStream(downloadUrl);
-        archive.append(stream, { name: zipPath });
-      } catch (fileErr) {
-        logger.warn(`Skipping file ${file.originalname}: ${fileErr.message}`);
-        // Add a placeholder text file instead
-        archive.append(`File unavailable: ${file.path}`, { name: `${folderPath}/${safeFilename}.unavailable.txt` });
       }
+
+      structure[key].push({ name: file.originalname, url: downloadUrl, size: file.size, category: file.category });
     }
 
-    // Add a manifest JSON
-    const manifest = {
-      exportedAt: new Date().toISOString(),
-      totalFiles: files.length,
-      subjects: subjects.map(s => ({ name: s.name, id: s._id.toString() })),
-      chapters: chapters.map(c => ({ name: c.name, subjectId: c.subjectId?.toString(), id: c._id.toString() }))
-    };
-    archive.append(JSON.stringify(manifest, null, 2), { name: '_manifest.json' });
+    // Build ZIP with HTML index + text files per folder
+    const archive = archiver('zip', { zlib: { level: 1 } });
+    const filename = `cloudos-backup-${new Date().toISOString().split('T')[0]}.zip`;
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    archive.pipe(res);
+
+    // Create an HTML index file with clickable download links
+    let html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+<title>CloudOS Backup - ${new Date().toLocaleDateString()}</title>
+<style>body{font-family:Arial,sans-serif;max-width:900px;margin:2rem auto;padding:1rem;background:#f5f5f5}
+h1{color:#064e3b}h2{color:#065f46;border-bottom:2px solid #10b981;padding-bottom:.5rem}
+.file{background:white;padding:.75rem;margin:.4rem 0;border-radius:6px;border-left:4px solid #10b981;display:flex;justify-content:space-between;align-items:center}
+a{color:#059669;text-decoration:none;font-weight:600}a:hover{text-decoration:underline}
+.meta{color:#6b7280;font-size:.8rem}.badge{background:#d1fae5;color:#065f46;padding:.2rem .5rem;border-radius:4px;font-size:.75rem}
+</style></head><body>
+<h1>☁️ CloudOS Backup</h1>
+<p>Generated: ${new Date().toLocaleString()} | Total files: ${files.length}</p>`;
+
+    for (const [folder, folderFiles] of Object.entries(structure)) {
+      const safe = folder.replace(/[/\\?%*:|"<>]/g, '-');
+      html += `<h2>📁 ${folder}</h2>`;
+      let txt = `Folder: ${folder}\nGenerated: ${new Date().toISOString()}\n${'='.repeat(60)}\n\n`;
+
+      for (const f of folderFiles) {
+        const sizeMB = f.size ? (f.size / (1024*1024)).toFixed(2) + ' MB' : 'unknown size';
+        html += `<div class="file"><div><a href="${f.url}" target="_blank" download="${f.name}">📄 ${f.name}</a><div class="meta">${sizeMB} <span class="badge">${f.category}</span></div></div><a href="${f.url}" target="_blank" download="${f.name}" style="background:#10b981;color:white;padding:.4rem .8rem;border-radius:5px;font-size:.8rem">⬇ Download</a></div>`;
+        txt += `File: ${f.name}\nSize: ${sizeMB}\nCategory: ${f.category}\nURL: ${f.url}\n\n`;
+      }
+
+      archive.append(txt, { name: `${safe}/download-links.txt` });
+    }
+
+    html += `</body></html>`;
+    archive.append(html, { name: 'index.html' });
+
+    // Also add a manifest
+    const manifest = JSON.stringify({ exportedAt: new Date().toISOString(), totalFiles: files.length, subjects: subjects.map(s=>s.name), structure: Object.fromEntries(Object.entries(structure).map(([k,v])=>[k,v.map(f=>f.name)])) }, null, 2);
+    archive.append(manifest, { name: '_manifest.json' });
 
     await archive.finalize();
-    logger.info(`ZIP backup downloaded by ${req.user.email} — ${files.length} files`);
+    logger.info(`Backup downloaded by ${req.user.email} — ${files.length} files`);
 
   } catch (error) {
     logger.error('Backup error:', error);
