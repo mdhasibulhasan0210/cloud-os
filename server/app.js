@@ -74,6 +74,7 @@ app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/results', require('./routes/results'));
 app.use('/api/subfolders', require('./routes/subfolders'));
+app.use('/api/bookmarks', require('./routes/bookmarks'));
 
 // View Routes
 const { protect, adminOnly, adminOrModerator } = require('./middleware/auth');

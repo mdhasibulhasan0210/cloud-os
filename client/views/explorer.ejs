@@ -693,6 +693,11 @@ function renderFileGrid(files,gridId,subjectId,subjectName,chapterId,chapterName
           <button class="btn-xs btn-b" onclick="downloadFile('${esc(f.id)}','${esc(f.filename)}')">
             <i class="fas fa-download"></i>
           </button>`:''}
+          <button class="btn-xs" id="bm-${esc(f.id)}" title="Bookmark"
+            style="background:rgba(251,191,36,.08);color:#fbbf24;border:1px solid rgba(251,191,36,.2)"
+            onclick="toggleBookmark('${esc(f.id)}','${esc(f.filename)}',this)">
+            <i class="fas fa-bookmark"></i>
+          </button>
         </div>
       </div>
     </div>`).join('');
@@ -1067,6 +1072,26 @@ async function loadFiles(chapterId,chapterName,subjectId,subjectName){
   }catch(e){
     document.getElementById('files-grid').innerHTML=errHTML(e.message,'grid-column:1/-1');
   }
+}
+
+// ── BOOKMARKS ──
+async function toggleBookmark(fileId,filename,btn){
+  try{
+    const check=await api(`/bookmarks/check/${fileId}`);
+    if(check.bookmarked){
+      await api(`/bookmarks/${fileId}`,{method:'DELETE'});
+      btn.style.background='rgba(251,191,36,.08)';
+      btn.style.color='#fbbf24';
+      btn.title='Bookmark';
+      toast('Bookmark removed');
+    } else {
+      await api('/bookmarks',{method:'POST',body:JSON.stringify({fileId})});
+      btn.style.background='rgba(251,191,36,.25)';
+      btn.style.color='#f59e0b';
+      btn.title='Remove bookmark';
+      toast(`"${filename}" bookmarked ⭐`);
+    }
+  }catch(e){toast(e.message,'err');}
 }
 
 // ── INIT ──

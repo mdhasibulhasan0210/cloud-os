@@ -476,6 +476,8 @@ async function apiForm(url,fd,method='POST'){
 // ── HELPERS ──
 function fmtSize(b){if(!b||b===0)return'0 B';const k=1024,s=['B','KB','MB','GB'];const i=Math.floor(Math.log(b)/Math.log(k));return(b/Math.pow(k,i)).toFixed(1)+' '+s[i];}
 function fmtDate(d){if(!d)return'';return new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}
+function esc(s){return(s||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');}
+function loadingHTML(style=''){return`<div class="empty" ${style?`style="${style}"`:''}><div class="pdf-spinner" style="width:28px;height:28px;border-width:2px"></div></div>`;}
 function animateCards(sel){document.querySelectorAll(sel).forEach((el,i)=>{setTimeout(()=>el.classList.add('loaded'),i*60);});}
 
 // ── NAVIGATION ──
@@ -611,7 +613,56 @@ async function viewShared(){
 
 // ── BOOKMARKS ──
 async function viewBookmarks(){
-  document.getElementById('content').innerHTML=`<div class="empty"><i class="fas fa-bookmark"></i><p>Bookmarks coming soon.</p></div>`;
+  const c=document.getElementById('content');
+  c.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.2rem">
+    <h3 style="font-size:.95rem;font-weight:700"><i class="fas fa-bookmark" style="color:var(--green)"></i> My Bookmarks</h3>
+  </div>
+  <div id="bookmarks-grid" class="files-grid">${loadingHTML('grid-column:1/-1')}</div>`;
+  try{
+    const d=await api('/bookmarks');
+    const grid=document.getElementById('bookmarks-grid');
+    if(!d.bookmarks||!d.bookmarks.length){
+      grid.innerHTML=`<div class="empty" style="grid-column:1/-1"><div class="empty-icon"><i class="fas fa-bookmark"></i></div><p>No bookmarks yet.<br><span style="font-size:.78rem;color:var(--muted)">Bookmark files from the Explorer to find them here quickly.</span></p></div>`;
+      return;
+    }
+    const cb='?v='+Date.now();
+    grid.innerHTML=d.bookmarks.map(f=>`
+      <div class="file-card">
+        <img src="${f.thumbnailPath||'/assets/images/default-thumb.jpg'}${cb}" class="file-thumb" alt="${f.filename}" loading="lazy"
+             onerror="this.src='/assets/images/default-thumb.jpg${cb}'">
+        <div class="file-body">
+          <div class="file-name" title="${f.filename}">${f.filename}</div>
+          <div class="file-meta">${fmtSize(f.size)} &middot; ${fmtDate(f.createdAt)}</div>
+          <span class="cat-badge">${f.category||'file'}</span>
+          <div class="file-btns" style="margin-top:.6rem">
+            <button class="btn-xs btn-g" onclick="previewFile('${esc(f.id)}','${esc(f.filename)}','${f.mimetype||''}')">
+              <i class="fas fa-eye"></i> View
+            </button>
+            ${f.downloadAllowed!==false?`<button class="btn-xs btn-b" onclick="downloadFile('${esc(f.id)}','${esc(f.filename)}')"><i class="fas fa-download"></i></button>`:''}
+            <button class="btn-xs" style="background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.2)" onclick="removeBookmark('${esc(f.id)}')">
+              <i class="fas fa-bookmark"></i>
+            </button>
+          </div>
+        </div>
+      </div>`).join('');
+  }catch(e){
+    document.getElementById('bookmarks-grid').innerHTML=`<div class="empty" style="grid-column:1/-1"><i class="fas fa-exclamation-circle" style="color:#ef4444"></i><p>${e.message}</p></div>`;
+  }
+}
+
+async function removeBookmark(fileId){
+  try{
+    await api(`/bookmarks/${fileId}`,{method:'DELETE'});
+    toast('Bookmark removed');
+    viewBookmarks();
+  }catch(e){toast(e.message,'err');}
+}
+
+async function addBookmark(fileId,filename){
+  try{
+    await api('/bookmarks',{method:'POST',body:JSON.stringify({fileId})});
+    toast(`"${filename}" bookmarked`);
+  }catch(e){toast(e.message,'err');}
 }
 </script>
 
