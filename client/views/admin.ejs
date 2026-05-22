@@ -252,8 +252,64 @@ tr:hover td{background:rgba(0,255,136,0.04)}
   .hamburger{display:flex}
   .sidebar-overlay-mob.open{display:block}
   .stats-row{grid-template-columns:1fr 1fr}
+
+  /* Main content padding */
+  .main-inner{padding:.75rem !important}
+
+  /* Section header wraps on mobile */
+  .section-header{flex-wrap:wrap;gap:.5rem;padding:.75rem}
+  .section-header h2{font-size:.95rem}
+  .section-header .btn{font-size:.72rem;padding:.4rem .7rem}
+
+  /* Tables — horizontal scroll with sticky action column */
+  .table-card{overflow-x:auto;-webkit-overflow-scrolling:touch;display:block}
+  .table-card table{min-width:600px;width:100%;display:table}
+  .table-card th,.table-card td{white-space:nowrap;padding:.5rem .6rem;font-size:.72rem}
+
+  /* Sticky action column */
+  .table-card td:last-child,.table-card th:last-child{
+    position:sticky;right:0;
+    background:var(--bg2,#0a1a12);
+    box-shadow:-3px 0 8px rgba(0,0,0,.4);
+    z-index:2;min-width:120px
+  }
+
+  /* Action buttons — icon only on mobile to save space */
+  .btn-sm{font-size:.68rem;padding:.28rem .5rem}
+  .btn-sm .btn-text{display:none} /* hide text, show icon only */
+
+  /* Cards grid */
+  #pending-grid{grid-template-columns:repeat(auto-fill,minmax(160px,1fr)) !important}
+
+  /* Modals — bottom sheet on mobile */
+  .modal-overlay{align-items:flex-end;padding:0}
+  .modal{width:100%;max-width:100%;border-radius:16px 16px 0 0;max-height:90vh;overflow-y:auto}
+
+  /* Chat */
+  .chat-layout{grid-template-columns:1fr;height:auto}
+  .chat-list{max-height:180px}
+  .chat-window{height:380px}
+
+  /* Profile form */
+  .form-grid{grid-template-columns:1fr}
+  .form-input,.form-select,.form-textarea{font-size:16px} /* prevent iOS zoom */
+
+  /* Stat cards */
+  .stat-card{padding:.75rem}
+  .stat-num{font-size:1.6rem}
+
+  /* Subject cards grid */
+  #subjects-list > div{grid-template-columns:1fr !important}
+
+  /* Backup stats */
+  #backup-stats > div{grid-template-columns:repeat(2,1fr) !important}
 }
-@media(max-width:480px){.stats-row{grid-template-columns:1fr}}
+@media(max-width:480px){
+  .stats-row{grid-template-columns:1fr}
+  .section-header{flex-direction:column;align-items:flex-start}
+  .section-header > div{display:flex;gap:.4rem;flex-wrap:wrap}
+  .table-card th,.table-card td{font-size:.68rem;padding:.4rem .5rem}
+}
 </style>
 
 <!-- Mobile hamburger -->
@@ -526,13 +582,13 @@ async function viewUsers(){
         <td class="action-cell">
           <div style="display:flex;gap:.35rem;flex-wrap:wrap">
             ${showActions?`
-              ${u.status==='pending'?`<button class="btn btn-green btn-sm" onclick="approveUser('${u.id}')"><i class="fas fa-check"></i> Approve</button>`:''}
-              ${u.status==='approved'?`<button class="btn btn-gray btn-sm" onclick="suspendUser('${u.id}')"><i class="fas fa-ban"></i> Suspend</button>`:''}
-              ${u.status==='suspended'?`<button class="btn btn-green btn-sm" onclick="approveUser('${u.id}')"><i class="fas fa-undo"></i> Restore</button>`:''}
-              ${isAdmin?`<button class="btn btn-gray btn-sm" onclick="showResetPassword('${u.id}','${u.username.replace(/'/g,"\\'")}')"><i class="fas fa-key"></i> Reset</button>`:''}
-              ${isAdmin?`<button class="btn btn-gray btn-sm" onclick="showChangeRole('${u.id}','${u.username.replace(/'/g,"\\'")}','${u.role}')"><i class="fas fa-user-tag"></i> Role</button>`:''}
-              ${isAdmin?`<button class="btn btn-red btn-sm" onclick="deleteUser('${u.id}','${u.username.replace(/'/g,"\\'")}')"><i class="fas fa-trash"></i> Delete</button>`:''}
-            `:(u.role==='admin'||u.role==='moderator')?`<span style="color:var(--muted);font-size:.72rem"><i class="fas fa-shield-alt"></i> ${u.role==='admin'?'Admin':'Moderator'}</span>`:'<span style="color:var(--muted);font-size:.72rem">View Only</span>'}
+              ${u.status==='pending'?`<button class="btn btn-green btn-sm" onclick="approveUser('${u.id}')"><i class="fas fa-check"></i> <span class="btn-text">Approve</span></button>`:''}
+              ${u.status==='approved'?`<button class="btn btn-gray btn-sm" onclick="suspendUser('${u.id}')"><i class="fas fa-ban"></i> <span class="btn-text">Suspend</span></button>`:''}
+              ${u.status==='suspended'?`<button class="btn btn-green btn-sm" onclick="approveUser('${u.id}')"><i class="fas fa-undo"></i> <span class="btn-text">Restore</span></button>`:''}
+              ${isAdmin?`<button class="btn btn-gray btn-sm" onclick="showResetPassword('${u.id}','${u.username.replace(/'/g,"\\'")}')"><i class="fas fa-key"></i> <span class="btn-text">Reset</span></button>`:''}
+              ${isAdmin?`<button class="btn btn-gray btn-sm" onclick="showChangeRole('${u.id}','${u.username.replace(/'/g,"\\'")}','${u.role}')"><i class="fas fa-user-tag"></i> <span class="btn-text">Role</span></button>`:''}
+              ${isAdmin?`<button class="btn btn-red btn-sm" onclick="deleteUser('${u.id}','${u.username.replace(/'/g,"\\'")}')"><i class="fas fa-trash"></i> <span class="btn-text">Delete</span></button>`:''}
+            `:(u.role==='admin'||u.role==='moderator'||u.role==='owner')?`<span style="color:var(--muted);font-size:.72rem"><i class="fas fa-shield-alt"></i> ${u.role==='owner'?'👑 Owner':u.role==='admin'?'Admin':'Moderator'}</span>`:'<span style="color:var(--muted);font-size:.72rem">View Only</span>'}
           </div>
         </td>
       </tr>`;
