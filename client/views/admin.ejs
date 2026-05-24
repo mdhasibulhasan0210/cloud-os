@@ -962,9 +962,32 @@ function showUploadToSubFolder(subjectId,chapterId,subFolderId,folderName,chapte
   showUploadModal(subjectId,chapterId,subjectName,chapterName,subFolderId,folderName);
 }
 
-async function toggleDownload(fileId,val,chapterId,chapterName,subjectId,subjectName){
-  try{await api(`/files/${fileId}`,{method:'PUT',body:JSON.stringify({downloadAllowed:val})});toast('Updated');viewChapterFiles(chapterId,chapterName,subjectId,subjectName);}
-  catch(e){toast(e.message,'error');}
+async function toggleDownload(fileId, valOrCurrentlyAllowed, chapterId, chapterName, subjectId, subjectName){
+  // Called from viewChapterFiles with (fileId, newVal, chapterId, chapterName, subjectId, subjectName)
+  // Called from viewAllFiles with (fileId, currentlyAllowed) — 2 args only
+  const isAllFilesContext = (chapterId === undefined);
+  const newVal = isAllFilesContext ? !valOrCurrentlyAllowed : valOrCurrentlyAllowed;
+  try{
+    await api(`/files/${fileId}`,{method:'PUT',body:JSON.stringify({downloadAllowed:newVal})});
+    if(isAllFilesContext){
+      // Update cache and button in-place for All Files view
+      if(window._allFilesCache){
+        const f=window._allFilesCache.find(x=>x.id===fileId);
+        if(f) f.downloadAllowed=newVal;
+      }
+      const btn=document.getElementById(`dl-btn-${fileId}`);
+      if(btn){
+        btn.className=`btn btn-sm ${newVal?'btn-green':'btn-gray'}`;
+        btn.title=newVal?'Download ON — click to disable':'Download OFF — click to enable';
+        btn.innerHTML=`<i class="fas fa-${newVal?'unlock':'lock'}"></i> <span>${newVal?'ON':'OFF'}</span>`;
+        btn.onclick=()=>toggleDownload(fileId,newVal);
+      }
+      toast(`Download ${newVal?'enabled':'disabled'} for this file`);
+    } else {
+      toast('Updated');
+      viewChapterFiles(chapterId,chapterName,subjectId,subjectName);
+    }
+  }catch(e){toast(e.message,'error');}
 }
 async function deleteFileAdmin(fileId,chapterId,chapterName,subjectId,subjectName){
   if(!confirm('Delete this file?'))return;
@@ -1110,27 +1133,6 @@ function renderAllFilesTable(files){
         </div>
       </td></tr>`).join('')}
     </tbody></table></div>`;
-}
-
-async function toggleDownload(fileId, currentlyAllowed){
-  const newVal = !currentlyAllowed;
-  try{
-    await api(`/files/${fileId}`,{method:'PUT',body:JSON.stringify({downloadAllowed:newVal})});
-    // Update cache
-    if(window._allFilesCache){
-      const f=window._allFilesCache.find(x=>x.id===fileId);
-      if(f) f.downloadAllowed=newVal;
-    }
-    // Update button in place without full re-render
-    const btn=document.getElementById(`dl-btn-${fileId}`);
-    if(btn){
-      btn.className=`btn btn-sm ${newVal?'btn-green':'btn-gray'}`;
-      btn.title=newVal?'Download ON — click to disable':'Download OFF — click to enable';
-      btn.innerHTML=`<i class="fas fa-${newVal?'unlock':'lock'}"></i> <span>${newVal?'ON':'OFF'}</span>`;
-      btn.onclick=()=>toggleDownload(fileId,newVal);
-    }
-    toast(`Download ${newVal?'enabled':'disabled'} for this file`);
-  }catch(e){toast(e.message,'error');}
 }
 
 async function deleteFileSimple(id){
@@ -1309,7 +1311,7 @@ async function viewMessages(){
     const d=await api('/users/approved');
     if(!d.users.length){document.getElementById('chat-list').innerHTML='<div style="padding:1rem;color:var(--muted);font-size:.82rem">No users</div>';return;}
     document.getElementById('chat-list').innerHTML=d.users.map(u=>`
-      <div class="chat-item" onclick="openChat('${u.id}','${u.username.replace(/'/g,"\\'")}')">
+      <div class="chat-item" onclick="openChat('${u.id}','${u.username.replace(/'/g,"\\'")}',this)">
         <div style="display:flex;align-items:center;gap:.6rem">
           <img src="${u.profilePicture}" style="width:34px;height:34px;border-radius:50%;object-fit:cover" onerror="this.src='/assets/images/default-avatar.png'">
           <div><div class="chat-item-name">${u.username}</div><div class="chat-item-preview">${u.email}</div></div>
@@ -1318,10 +1320,10 @@ async function viewMessages(){
   }catch(e){toast(e.message,'error');}
 }
 
-async function openChat(userId,username){
+async function openChat(userId,username,clickedEl){
   activeChatUser={id:userId,name:username};
   document.querySelectorAll('.chat-item').forEach(i=>i.classList.remove('active'));
-  event.currentTarget.classList.add('active');
+  if(clickedEl) clickedEl.classList.add('active');
   document.getElementById('chat-window').innerHTML=`
     <div class="chat-header">${username}</div>
     <div class="chat-messages" id="chat-msgs"><div style="color:var(--muted);font-size:.82rem;margin:auto">Loading...</div></div>
