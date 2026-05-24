@@ -760,14 +760,76 @@ async function loadExplorerFiles(chapterId,chapterName,subjectId,subjectName){
       <span style="color:var(--muted)">/</span>
       <span style="color:var(--text)">${chapterName}</span>
     </div>
+    <div id="subfolder-section"></div>
     <div class="files-grid" id="chapter-files-grid"><div class="empty" style="grid-column:1/-1"><i class="fas fa-spinner fa-spin" style="font-size:1.5rem;opacity:.5"></i></div></div>`;
   try{
-    const d=await api(`/files?chapterId=${chapterId}`);
-    if(!d.files||!d.files.length){
-      document.getElementById('chapter-files-grid').innerHTML=`<div class="empty" style="grid-column:1/-1"><i class="fas fa-file"></i><p>No files in this chapter yet.</p></div>`;
+    const [filesData, subfoldersData] = await Promise.all([
+      api(`/files?chapterId=${chapterId}`),
+      api(`/subfolders?chapterId=${chapterId}`)
+    ]);
+
+    const subfolders = subfoldersData.subfolders || [];
+    const sfSection = document.getElementById('subfolder-section');
+
+    // Render subfolders
+    if(subfolders.length){
+      sfSection.innerHTML=`
+        <div style="font-size:.72rem;color:var(--muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:.6rem"><i class="fas fa-folder" style="margin-right:.4rem"></i>Subfolders</div>
+        <div style="display:flex;flex-direction:column;gap:.5rem;margin-bottom:1.2rem">
+          ${subfolders.map(sf=>`
+            <div class="notif-item" style="cursor:pointer;border-left:3px solid rgba(251,191,36,.4)"
+                 onclick="loadExplorerSubfolderFiles('${sf.id}','${(sf.name||'').replace(/'/g,"\\'")}','${chapterId}','${(chapterName||'').replace(/'/g,"\\'")}','${subjectId}','${(subjectName||'').replace(/'/g,"\\'")}')">
+              <div class="notif-icon" style="width:38px;height:38px;border-radius:8px;flex-shrink:0;background:rgba(251,191,36,.1);border-color:rgba(251,191,36,.25);color:#fbbf24">
+                <i class="fas fa-folder"></i>
+              </div>
+              <div style="flex:1">
+                <div style="font-size:.85rem;font-weight:600">${sf.name}</div>
+                <div style="font-size:.72rem;color:var(--muted);margin-top:.15rem">${sf.fileCount||0} files</div>
+              </div>
+              <i class="fas fa-chevron-right" style="color:var(--muted);font-size:.75rem"></i>
+            </div>`).join('')}
+        </div>`;
+      animateCards('.notif-item');
+    }
+
+    // Render direct chapter files (exclude subfolder files)
+    const directFiles = (filesData.files||[]).filter(f=>!f.subFolderId);
+    const grid = document.getElementById('chapter-files-grid');
+    if(directFiles.length){
+      if(subfolders.length){
+        grid.insertAdjacentHTML('beforebegin',`<div style="font-size:.72rem;color:var(--muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:.6rem"><i class="fas fa-file" style="margin-right:.4rem"></i>Files</div>`);
+      }
+      grid.innerHTML=directFiles.map(f=>fileCard(f,false)).join('');
+      animateCards('.file-card');
+    } else if(!subfolders.length){
+      grid.innerHTML=`<div class="empty" style="grid-column:1/-1"><i class="fas fa-file"></i><p>No files in this chapter yet.</p></div>`;
+    } else {
+      grid.innerHTML='';
+    }
+  }catch(e){toast(e.message,'err');}
+}
+
+async function loadExplorerSubfolderFiles(subfolderId,subfolderName,chapterId,chapterName,subjectId,subjectName){
+  explorerState={view:'subfolder',subjectId,subjectName,chapterId,chapterName,subfolderId,subfolderName};
+  document.getElementById('content').innerHTML=`
+    <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:1.2rem;padding:.7rem 1rem;background:rgba(10,26,18,.7);border:1px solid var(--border);border-radius:9px;font-size:.82rem;flex-wrap:wrap">
+      <i class="fas fa-home" style="color:var(--green);cursor:pointer" onclick="viewExplorer()"></i>
+      <span style="color:var(--muted)">/</span>
+      <span style="color:var(--green);cursor:pointer" onclick="loadExplorerChapters('${subjectId}','${(subjectName||'').replace(/'/g,"\\'")}'">${subjectName}</span>
+      <span style="color:var(--muted)">/</span>
+      <span style="color:var(--green);cursor:pointer" onclick="loadExplorerFiles('${chapterId}','${(chapterName||'').replace(/'/g,"\\'")}','${subjectId}','${(subjectName||'').replace(/'/g,"\\'")}'">${chapterName}</span>
+      <span style="color:var(--muted)">/</span>
+      <span style="color:var(--text)">${subfolderName}</span>
+    </div>
+    <div class="files-grid" id="chapter-files-grid"><div class="empty" style="grid-column:1/-1"><i class="fas fa-spinner fa-spin" style="font-size:1.5rem;opacity:.5"></i></div></div>`;
+  try{
+    const d=await api(`/subfolders/${subfolderId}/files`);
+    const files=d.files||[];
+    if(!files.length){
+      document.getElementById('chapter-files-grid').innerHTML=`<div class="empty" style="grid-column:1/-1"><i class="fas fa-folder-open"></i><p>No files in this subfolder yet.</p></div>`;
       return;
     }
-    document.getElementById('chapter-files-grid').innerHTML=d.files.map(f=>fileCard(f,false)).join('');
+    document.getElementById('chapter-files-grid').innerHTML=files.map(f=>fileCard(f,false)).join('');
     animateCards('.file-card');
   }catch(e){toast(e.message,'err');}
 }

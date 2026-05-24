@@ -1084,15 +1084,24 @@ function renderAllFilesTable(files){
     return;
   }
   el.innerHTML=`<div class="table-card"><table>
-    <thead><tr><th>File</th><th>Category</th><th>Uploaded By</th><th>Size</th><th>Date</th><th>Actions</th></tr></thead>
-    <tbody>${files.map(f=>`<tr>
+    <thead><tr><th>File</th><th>Category</th><th>Uploaded By</th><th>Size</th><th>Date</th><th>Download</th><th>Actions</th></tr></thead>
+    <tbody>${files.map(f=>`<tr id="afrow-${f.id}">
       <td><div style="display:flex;align-items:center;gap:.6rem">
         <img src="${f.thumbnailPath||'/assets/images/default-thumb.jpg'}" style="width:36px;height:36px;object-fit:cover;border-radius:5px" onerror="this.src='/assets/images/default-thumb.jpg'">
-        <span style="font-size:.82rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${f.filename}">${f.filename}</span></div></td>
+        <span style="font-size:.82rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${f.filename}">${f.filename}</span></div></td>
       <td><span class="badge badge-blue">${f.category||'other'}</span></td>
       <td style="font-size:.78rem;color:var(--muted)">${f.uploadedBy||'—'}</td>
       <td style="font-size:.78rem;color:var(--muted)">${fmtSize(f.size)}</td>
       <td style="font-size:.75rem;color:var(--muted)">${fmtDate(f.createdAt)}</td>
+      <td>
+        <button id="dl-btn-${f.id}" class="btn btn-sm ${f.downloadAllowed!==false?'btn-green':'btn-gray'}"
+          onclick="toggleDownload('${f.id}',${f.downloadAllowed!==false})"
+          title="${f.downloadAllowed!==false?'Download ON — click to disable':'Download OFF — click to enable'}"
+          style="min-width:70px">
+          <i class="fas fa-${f.downloadAllowed!==false?'unlock':'lock'}"></i>
+          <span>${f.downloadAllowed!==false?'ON':'OFF'}</span>
+        </button>
+      </td>
       <td>
         <div style="display:flex;gap:.4rem">
           <button class="btn btn-green btn-sm" onclick="shareFileModal('${f.id}','${(f.filename||'').replace(/'/g,"\\'")}')"><i class="fas fa-share"></i></button>
@@ -1100,6 +1109,27 @@ function renderAllFilesTable(files){
         </div>
       </td></tr>`).join('')}
     </tbody></table></div>`;
+}
+
+async function toggleDownload(fileId, currentlyAllowed){
+  const newVal = !currentlyAllowed;
+  try{
+    await api(`/files/${fileId}`,{method:'PUT',body:JSON.stringify({downloadAllowed:newVal})});
+    // Update cache
+    if(window._allFilesCache){
+      const f=window._allFilesCache.find(x=>x.id===fileId);
+      if(f) f.downloadAllowed=newVal;
+    }
+    // Update button in place without full re-render
+    const btn=document.getElementById(`dl-btn-${fileId}`);
+    if(btn){
+      btn.className=`btn btn-sm ${newVal?'btn-green':'btn-gray'}`;
+      btn.title=newVal?'Download ON — click to disable':'Download OFF — click to enable';
+      btn.innerHTML=`<i class="fas fa-${newVal?'unlock':'lock'}"></i> <span>${newVal?'ON':'OFF'}</span>`;
+      btn.onclick=()=>toggleDownload(fileId,newVal);
+    }
+    toast(`Download ${newVal?'enabled':'disabled'} for this file`);
+  }catch(e){toast(e.message,'error');}
 }
 
 async function deleteFileSimple(id){
