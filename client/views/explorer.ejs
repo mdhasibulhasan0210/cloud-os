@@ -1003,6 +1003,7 @@ async function submitUpload(){
   formData.append('category',category);
   if(_modalSubjectId) formData.append('subjectId',_modalSubjectId);
   if(_modalChapterId) formData.append('chapterId',_modalChapterId);
+  if(_modalSubfolderId) formData.append('subFolderId',_modalSubfolderId);
   const progress=document.getElementById('upload-progress');
   const bar=document.getElementById('upload-progress-bar');
   const txt=document.getElementById('upload-progress-text');
@@ -1025,18 +1026,72 @@ async function submitUpload(){
     toast('File uploaded!');
     setTimeout(()=>{
       closeUploadModal();
-      if(state.view==='files') loadFiles(state.chapterId,state.chapterName,state.subjectId,state.subjectName);
+      _modalSubfolderId='';
+      if(state.view==='subfolder') loadSubfolderFiles(state.subfolderId,state.subfolderName,state.chapterId,state.chapterName,state.subjectId,state.subjectName);
+      else if(state.view==='files') loadFiles(state.chapterId,state.chapterName,state.subjectId,state.subjectName);
       else if(state.view==='chapters') loadChapters(state.subjectId,state.subjectName);
     },700);
   }catch(e){progress.style.display='none';toast(e.message,'err');}
 }
 
-// ── LOAD FILES (with admin upload button) ──
+// ── SUBFOLDER HELPERS ──
+let _modalSubfolderId='';
+
+function showUploadModalSubfolder(subjectId,chapterId,subfolderId){
+  _modalSubjectId=subjectId; _modalChapterId=chapterId; _modalSubfolderId=subfolderId;
+  document.getElementById('modal-upload').style.display='flex';
+  document.getElementById('upload-file-input').value='';
+  document.getElementById('upload-desc').value='';
+  document.getElementById('upload-progress').style.display='none';
+}
+
+function showCreateSubfolderModal(chapterId,subjectId){
+  _modalSubjectId=subjectId; _modalChapterId=chapterId;
+  // Reuse a simple inline prompt via a small modal
+  const existing=document.getElementById('modal-create-subfolder');
+  if(existing) existing.remove();
+  const div=document.createElement('div');
+  div.id='modal-create-subfolder';
+  div.style.cssText='display:flex;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:400;align-items:center;justify-content:center';
+  div.innerHTML=`<div style="background:#0a1a12;border:1px solid rgba(0,255,136,.25);border-radius:12px;padding:1.5rem;width:min(380px,92vw)">
+    <h3 style="color:var(--green);margin-bottom:1rem;font-size:.95rem"><i class="fas fa-folder-plus"></i> New Subfolder</h3>
+    <input id="input-subfolder-name" type="text" placeholder="Subfolder name..." maxlength="100"
+      style="width:100%;background:rgba(0,255,136,.04);border:1px solid rgba(0,255,136,.2);border-radius:7px;padding:.6rem .9rem;color:var(--text);font-size:.85rem;outline:none;margin-bottom:1rem"
+      onkeydown="if(event.key==='Enter')submitCreateSubfolder()">
+    <div style="display:flex;gap:.6rem;justify-content:flex-end">
+      <button onclick="document.getElementById('modal-create-subfolder').remove()" class="btn-xs" style="background:rgba(255,255,255,.06);color:var(--muted);border:1px solid rgba(255,255,255,.1);padding:.45rem .9rem">Cancel</button>
+      <button onclick="submitCreateSubfolder()" class="btn-xs btn-g" style="padding:.45rem .9rem">Create</button>
+    </div>
+  </div>`;
+  document.body.appendChild(div);
+  setTimeout(()=>document.getElementById('input-subfolder-name').focus(),50);
+}
+
+async function submitCreateSubfolder(){
+  const name=(document.getElementById('input-subfolder-name').value||'').trim();
+  if(!name){toast('Enter a subfolder name','err');return;}
+  try{
+    await api('/subfolders',{method:'POST',body:JSON.stringify({name,chapterId:_modalChapterId,subjectId:_modalSubjectId})});
+    toast('Subfolder created!');
+    document.getElementById('modal-create-subfolder').remove();
+    loadFiles(_modalChapterId,state.chapterName,_modalSubjectId,state.subjectName);
+  }catch(e){toast(e.message,'err');}
+}
+
+async function deleteSubfolder(sfId,sfName,chapterId,chapterName,subjectId,subjectName){
+  if(!confirm(`Delete subfolder "${sfName}" and all its files?`))return;
+  try{
+    await api(`/subfolders/${sfId}`,{method:'DELETE'});
+    toast('Subfolder deleted');
+    loadFiles(chapterId,chapterName,subjectId,subjectName);
+  }catch(e){toast(e.message,'err');}
+}
 async function loadFiles(chapterId,chapterName,subjectId,subjectName){
   state={view:'files',subjectId,subjectName,chapterId,chapterName};
   setTitle('<i class="fas fa-file-alt"></i>',chapterName);
   const adminBtns=IS_ADMIN?`<div style="display:flex;gap:.6rem;margin-bottom:1rem;flex-wrap:wrap">
     <button class="btn-xs btn-b" onclick="showUploadModal('${esc(subjectId)}','${esc(chapterId)}')" style="padding:.5rem 1rem;font-size:.78rem"><i class="fas fa-upload"></i> Upload File</button>
+    <button class="btn-xs btn-g" onclick="showCreateSubfolderModal('${esc(chapterId)}','${esc(subjectId)}')" style="padding:.5rem 1rem;font-size:.78rem"><i class="fas fa-folder-plus"></i> New Subfolder</button>
   </div>`:'';
   document.getElementById('content').innerHTML=`
     <div class="breadcrumb">
@@ -1047,9 +1102,72 @@ async function loadFiles(chapterId,chapterName,subjectId,subjectName){
       <span class="bc-current">${chapterName}</span>
     </div>
     ${adminBtns}
+    <div id="subfolder-list"></div>
     <div class="files-grid" id="files-grid">${loadingHTML('grid-column:1/-1')}</div>`;
   try{
-    const d=await api(`/files?chapterId=${chapterId}`);
+    // Load subfolders and direct chapter files in parallel
+    const [filesData, subfoldersData] = await Promise.all([
+      api(`/files?chapterId=${chapterId}`),
+      api(`/subfolders?chapterId=${chapterId}`)
+    ]);
+
+    // Render subfolders first
+    const subfolders = subfoldersData.subfolders || [];
+    const subfolderList = document.getElementById('subfolder-list');
+    if(subfolders.length){
+      subfolderList.innerHTML=`<div style="margin-bottom:1rem">
+        <div style="font-size:.72rem;color:var(--muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:.6rem;padding-left:.2rem"><i class="fas fa-folder" style="margin-right:.4rem"></i>Subfolders</div>
+        ${subfolders.map(sf=>`
+          <div class="chap-item" onclick="loadSubfolderFiles('${esc(sf.id)}','${esc(sf.name)}','${esc(chapterId)}','${esc(chapterName)}','${esc(subjectId)}','${esc(subjectName)}')">
+            <div class="chap-num" style="background:rgba(251,191,36,.1);border-color:rgba(251,191,36,.25);color:#fbbf24"><i class="fas fa-folder"></i></div>
+            <div class="chap-info">
+              <div class="chap-name">${sf.name}</div>
+              <div class="chap-meta">${sf.fileCount||0} files</div>
+            </div>
+            ${IS_ADMIN?`<button class="btn-xs" style="background:rgba(239,68,68,.08);color:#ef4444;border:1px solid rgba(239,68,68,.2);margin-left:auto;flex-shrink:0" onclick="event.stopPropagation();deleteSubfolder('${esc(sf.id)}','${esc(sf.name)}','${esc(chapterId)}','${esc(chapterName)}','${esc(subjectId)}','${esc(subjectName)}')"><i class="fas fa-trash"></i></button>`:''}
+            <i class="fas fa-chevron-right" style="color:var(--muted);font-size:.72rem;flex-shrink:0"></i>
+          </div>`).join('')}
+      </div>`;
+      animIn('.chap-item','in',60);
+    }
+
+    // Render direct chapter files (exclude subfolder files — only files with no subFolderId)
+    const directFiles = (filesData.files||[]).filter(f=>!f.subFolderId);
+    if(directFiles.length || !subfolders.length){
+      if(subfolders.length && directFiles.length){
+        const filesGrid = document.getElementById('files-grid');
+        filesGrid.insertAdjacentHTML('beforebegin',`<div style="font-size:.72rem;color:var(--muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:.6rem;padding-left:.2rem"><i class="fas fa-file" style="margin-right:.4rem"></i>Files</div>`);
+      }
+      renderFileGrid(directFiles,'files-grid',subjectId,subjectName,chapterId,chapterName);
+    } else {
+      document.getElementById('files-grid').innerHTML='';
+    }
+  }catch(e){
+    document.getElementById('files-grid').innerHTML=errHTML(e.message,'grid-column:1/-1');
+  }
+}
+
+// ── LOAD SUBFOLDER FILES ──
+async function loadSubfolderFiles(subfolderId,subfolderName,chapterId,chapterName,subjectId,subjectName){
+  state={view:'subfolder',subjectId,subjectName,chapterId,chapterName,subfolderId,subfolderName};
+  setTitle('<i class="fas fa-folder-open"></i>',subfolderName);
+  const adminBtns=IS_ADMIN?`<div style="display:flex;gap:.6rem;margin-bottom:1rem;flex-wrap:wrap">
+    <button class="btn-xs btn-b" onclick="showUploadModalSubfolder('${esc(subjectId)}','${esc(chapterId)}','${esc(subfolderId)}')" style="padding:.5rem 1rem;font-size:.78rem"><i class="fas fa-upload"></i> Upload File</button>
+  </div>`:'';
+  document.getElementById('content').innerHTML=`
+    <div class="breadcrumb">
+      <span class="bc-link" onclick="loadSubjects()"><i class="fas fa-home"></i> Archive</span>
+      <span class="bc-sep">/</span>
+      <span class="bc-link" onclick="loadChapters('${esc(subjectId)}','${esc(subjectName)}')">${subjectName}</span>
+      <span class="bc-sep">/</span>
+      <span class="bc-link" onclick="loadFiles('${esc(chapterId)}','${esc(chapterName)}','${esc(subjectId)}','${esc(subjectName)}')">${chapterName}</span>
+      <span class="bc-sep">/</span>
+      <span class="bc-current">${subfolderName}</span>
+    </div>
+    ${adminBtns}
+    <div class="files-grid" id="files-grid">${loadingHTML('grid-column:1/-1')}</div>`;
+  try{
+    const d=await api(`/subfolders/${subfolderId}/files`);
     renderFileGrid(d.files||[],'files-grid',subjectId,subjectName,chapterId,chapterName);
   }catch(e){
     document.getElementById('files-grid').innerHTML=errHTML(e.message,'grid-column:1/-1');

@@ -107,6 +107,7 @@ exports.getFiles = async (req, res) => {
         uploaderId: file.uploadedBy ? file.uploadedBy.toString() : null,
         subjectId: file.subjectId ? file.subjectId.toString() : null,
         chapterId: file.chapterId ? file.chapterId.toString() : null,
+        subFolderId: file.subFolderId ? file.subFolderId.toString() : null,
         createdAt: file.createdAt
       };
     }));
