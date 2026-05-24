@@ -21,7 +21,8 @@ exports.uploadFile = async (req, res) => {
     // Upload buffer to B2
     const { key, url, fileId: b2FileId } = await uploadToB2(req.file.buffer, req.file.originalname, req.file.mimetype);
 
-    const status = req.user.role === 'admin' ? 'approved' : 'pending';
+    const isAdminOrOwner = ['admin', 'owner', 'moderator'].includes(req.user.role);
+    const status = isAdminOrOwner ? 'approved' : 'pending';
 
     const fileDoc = {
       filename: key,
@@ -41,7 +42,8 @@ exports.uploadFile = async (req, res) => {
       b2FileId
     };
 
-    if (req.user.role === 'admin' && !isPersonal) {
+    // Admin, owner, and moderator can assign files to subjects/chapters
+    if (isAdminOrOwner && !isPersonal) {
       if (subjectId) fileDoc.subjectId = toOid(subjectId);
       if (chapterId) fileDoc.chapterId = toOid(chapterId);
       if (subFolderId) fileDoc.subFolderId = toOid(subFolderId);
@@ -50,8 +52,8 @@ exports.uploadFile = async (req, res) => {
     const file = await File.create(fileDoc);
     logger.info(`File uploaded to B2: ${req.file.originalname} by ${req.user.email}`);
 
-    if (req.user.role !== 'admin') {
-      const admin = await User.findOne({ role: 'admin' });
+    if (!isAdminOrOwner) {
+      const admin = await User.findOne({ role: { $in: ['admin', 'owner'] } });
       if (admin) {
         await Notification.create({ userId: admin._id, message: `New file upload pending approval: ${req.file.originalname}`, type: 'approval', read: false, fileId: file._id });
       }
@@ -71,12 +73,14 @@ exports.uploadFile = async (req, res) => {
 // @desc    Get files
 exports.getFiles = async (req, res) => {
   try {
-    const { subjectId, chapterId, personal, shared } = req.query;
+    const { subjectId, chapterId, subFolderId, personal, shared } = req.query;
+    const isAdminOrOwner = ['admin', 'owner', 'moderator'].includes(req.user.role);
     let query = { status: 'approved' };
 
-    if (req.user.role === 'admin') {
+    if (isAdminOrOwner) {
       if (subjectId) query.subjectId = toOid(subjectId);
       if (chapterId) query.chapterId = toOid(chapterId);
+      if (subFolderId) query.subFolderId = toOid(subFolderId);
       if (personal === 'true') { query.owner = { $exists: true }; query.subjectId = { $exists: false }; }
     } else {
       if (shared === 'true') {
@@ -85,8 +89,10 @@ exports.getFiles = async (req, res) => {
         query.owner = toOid(req.user.id);
         query.subjectId = { $exists: false };
       } else {
+        // Regular users can see approved files in subjects/chapters/subfolders
         if (subjectId) query.subjectId = toOid(subjectId);
         if (chapterId) query.chapterId = toOid(chapterId);
+        if (subFolderId) query.subFolderId = toOid(subFolderId);
       }
     }
 
@@ -117,7 +123,7 @@ exports.getFile = async (req, res) => {
     const file = await File.findById(req.params.id);
     if (!file) return res.status(404).json({ success: false, message: 'File not found' });
 
-    const canView = req.user.role === 'admin' ||
+    const canView = ['admin', 'owner', 'moderator'].includes(req.user.role) ||
       file.owner?.toString() === req.user.id ||
       (file.sharedWith || []).some(id => id.toString() === req.user.id) ||
       (file.status === 'approved' && file.subjectId);
@@ -143,7 +149,7 @@ exports.previewFile = async (req, res) => {
     const file = await File.findById(req.params.id);
     if (!file) return res.status(404).json({ success: false, message: 'File not found' });
 
-    const canView = req.user.role === 'admin' ||
+    const canView = ['admin', 'owner', 'moderator'].includes(req.user.role) ||
       file.owner?.toString() === req.user.id ||
       (file.sharedWith || []).some(id => id.toString() === req.user.id) ||
       (file.status === 'approved' && file.subjectId);
@@ -169,7 +175,7 @@ exports.updateFile = async (req, res) => {
   try {
     const file = await File.findById(req.params.id);
     if (!file) return res.status(404).json({ success: false, message: 'File not found' });
-    if (req.user.role !== 'admin' && file.owner?.toString() !== req.user.id) return res.status(403).json({ success: false, message: 'Access denied' });
+    if (!['admin', 'owner', 'moderator'].includes(req.user.role) && file.owner?.toString() !== req.user.id) return res.status(403).json({ success: false, message: 'Access denied' });
 
     const { description, category, downloadAllowed, chapterId } = req.body;
     const updates = {};
@@ -191,7 +197,7 @@ exports.deleteFile = async (req, res) => {
   try {
     const file = await File.findById(req.params.id);
     if (!file) return res.status(404).json({ success: false, message: 'File not found' });
-    if (req.user.role !== 'admin' && file.owner?.toString() !== req.user.id) return res.status(403).json({ success: false, message: 'Access denied' });
+    if (!['admin', 'owner', 'moderator'].includes(req.user.role) && file.owner?.toString() !== req.user.id) return res.status(403).json({ success: false, message: 'Access denied' });
 
     // Delete from B2 or Cloudinary
     if (file.storageType === 'b2' && file.filename) {
@@ -219,7 +225,7 @@ exports.shareFile = async (req, res) => {
 
     const file = await File.findById(fileId);
     if (!file) return res.status(404).json({ success: false, message: 'File not found' });
-    if (req.user.role !== 'admin' && file.owner?.toString() !== req.user.id) return res.status(403).json({ success: false, message: 'Access denied' });
+    if (!['admin', 'owner', 'moderator'].includes(req.user.role) && file.owner?.toString() !== req.user.id) return res.status(403).json({ success: false, message: 'Access denied' });
 
     const currentShared = (file.sharedWith || []).map(id => id.toString());
     const newShared = [...new Set([...currentShared, ...userIds])].map(id => toOid(id));

@@ -285,7 +285,7 @@ document.getElementById('login-form').addEventListener('submit',async e=>{
     const d=await apiPost('/api/auth/login',{email,password:pass});
     toast('Welcome back, '+d.user.username+'!');
     setTimeout(()=>{
-      if(d.user.role==='admin')window.location.href='/admin';
+      if(d.user.role==='admin'||d.user.role==='owner')window.location.href='/admin';
       else window.location.href='/dashboard';
     },800);
   }catch(err){

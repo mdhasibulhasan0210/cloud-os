@@ -320,13 +320,13 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
          onerror="this.src='/assets/images/default-avatar.png'">
     <div>
       <div class="sb-name"><%= user.username %></div>
-      <div class="sb-role"><%= user.role==='admin'?'System Admin':'Approved User' %></div>
+      <div class="sb-role"><%= user.role==='admin'||user.role==='owner'?'System Admin':'Approved User' %></div>
     </div>
   </div>
   <nav class="sb-nav">
     <a href="/dashboard" class="ni"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
     <a href="/explorer" class="ni active"><i class="fas fa-compass"></i> Explorer</a>
-    <% if(user.role==='admin'){ %>
+    <% if(user.role==='admin'||user.role==='owner'){ %>
     <a href="/admin" class="ni"><i class="fas fa-shield-alt"></i> Admin Panel</a>
     <% } %>
   </nav>
@@ -647,26 +647,8 @@ async function loadChapters(subjectId,subjectName){
   }
 }
 
-// ── LOAD FILES ──
-async function loadFiles(chapterId,chapterName,subjectId,subjectName){
-  state={view:'files',subjectId,subjectName,chapterId,chapterName};
-  setTitle('<i class="fas fa-file-alt"></i>',chapterName);
-  document.getElementById('content').innerHTML=`
-    <div class="breadcrumb">
-      <span class="bc-link" onclick="loadSubjects()"><i class="fas fa-home"></i> Archive</span>
-      <span class="bc-sep">/</span>
-      <span class="bc-link" onclick="loadChapters('${esc(subjectId)}','${esc(subjectName)}')">${subjectName}</span>
-      <span class="bc-sep">/</span>
-      <span class="bc-current">${chapterName}</span>
-    </div>
-    <div class="files-grid" id="files-grid">${loadingHTML('grid-column:1/-1')}</div>`;
-  try{
-    const d=await api(`/files?chapterId=${chapterId}`);
-    renderFileGrid(d.files||[],'files-grid',subjectId,subjectName,chapterId,chapterName);
-  }catch(e){
-    document.getElementById('files-grid').innerHTML=errHTML(e.message,'grid-column:1/-1');
-  }
-}
+// ── LOAD FILES ── (defined below with admin upload button support)
+
 
 function renderFileGrid(files,gridId,subjectId,subjectName,chapterId,chapterName){
   const grid=document.getElementById(gridId);
@@ -716,7 +698,7 @@ function errHTML(msg,style=''){
 }
 
 // ── USER ROLE ──
-const IS_ADMIN = '<%= user.role %>' === 'admin' || '<%= user.role %>' === 'moderator';
+const IS_ADMIN = ['admin', 'moderator', 'owner'].includes('<%= user.role %>');
 
 // ── PDF VIEWER ──
 let pdfZoom=100,pdfFileId='',pdfFilename='',pdfDownloadUrl='';

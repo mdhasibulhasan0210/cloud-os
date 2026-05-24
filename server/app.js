@@ -122,7 +122,7 @@ app.get('/auth', (req, res) => {
 
 // Dashboard (protected)
 app.get('/dashboard', protect, (req, res) => {
-  if (req.user.status === 'pending' && req.user.role !== 'admin') {
+  if (req.user.status === 'pending' && !['admin', 'owner', 'moderator'].includes(req.user.role)) {
     return res.render('pending');
   }
   res.render('dashboard', { user: req.user });
