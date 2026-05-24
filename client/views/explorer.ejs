@@ -766,7 +766,14 @@ async function openPdfViewer(fileId,filename){
         if(!loaded){loaded=true;loadingEl.style.display='none';iframe.style.display='block';document.getElementById('pdf-page-info').textContent='Loaded';}
       },8000);
     } else {
-
+      // Non-PDF: try to display in iframe anyway
+      const iframe=document.getElementById('pdf-iframe');
+      iframe.src=data.url;
+      iframe.style.display='block';
+      canvas.style.display='none';
+      loadingEl.style.display='none';
+      document.getElementById('pdf-page-info').textContent='Loaded';
+    }
   }catch(e){
     loadingEl.innerHTML=`<i class="fas fa-exclamation-circle" style="font-size:2rem;color:#ef4444"></i><span>${e.message||'Failed to load'} — <a href="${pdfDownloadUrl||'#'}" target="_blank" style="color:var(--green)">Open in new tab</a></span>`;
   }
@@ -947,7 +954,7 @@ document.addEventListener('keydown',e=>{
 });
 
 // ── ADMIN MODALS ──
-let _modalSubjectId='',_modalChapterId='';
+let _modalSubjectId='',_modalChapterId='',_modalSubfolderId='';
 
 function showCreateSubjectModal(){
   document.getElementById('modal-create-subject').style.display='flex';
@@ -1036,7 +1043,6 @@ async function submitUpload(){
 }
 
 // ── SUBFOLDER HELPERS ──
-let _modalSubfolderId='';
 
 function showUploadModalSubfolder(subjectId,chapterId,subfolderId){
   _modalSubjectId=subjectId; _modalChapterId=chapterId; _modalSubfolderId=subfolderId;

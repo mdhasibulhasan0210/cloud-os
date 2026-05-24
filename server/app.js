@@ -51,7 +51,7 @@ app.use(helmet({
       ],
       mediaSrc: ["'self'", "blob:", "https:"],
       objectSrc: ["'none'"],
-      frameSrc: ["'self'"],
+      frameSrc: ["'self'", "https:", "blob:"],
       baseUri: ["'self'"],
       formAction: ["'self'"],
       upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : null
@@ -70,12 +70,20 @@ app.use(cors({
 }));
 
 // Body parser with UTF-8 encoding support
-app.use(express.json({ limit: '10mb', charset: 'utf-8' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb', charset: 'utf-8' }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// UTF-8 encoding middleware for all responses
+// UTF-8 charset for HTML responses only (not API JSON)
 app.use((req, res, next) => {
-  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  const send = res.send.bind(res);
+  res.send = function(body) {
+    // Only set charset for HTML responses, not JSON API responses
+    const ct = res.getHeader('Content-Type');
+    if (ct && typeof ct === 'string' && ct.includes('text/html') && !ct.includes('charset')) {
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    }
+    return send(body);
+  };
   next();
 });
 
