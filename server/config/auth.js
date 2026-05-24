@@ -1,7 +1,12 @@
 require('dotenv').config();
 
+// Validate JWT_SECRET exists
+if (!process.env.JWT_SECRET) {
+  throw new Error('FATAL: JWT_SECRET environment variable is not set. Please set it in your .env file.');
+}
+
 module.exports = {
-  jwtSecret: process.env.JWT_SECRET || 'fallback-secret-change-in-production',
+  jwtSecret: process.env.JWT_SECRET,
   jwtExpire: '7d',
   cookieOptions: {
     httpOnly: true,

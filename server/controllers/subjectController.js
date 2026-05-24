@@ -66,6 +66,12 @@ exports.deleteSubject = async (req, res) => {
   try {
     const { id } = req.params;
     const oid = toOid(id);
+    // Cascade: delete subfolders, chapters, files
+    const SubFolder = require('../models/SubFolder');
+    const chapters = await Chapter.find({ subjectId: oid });
+    for (const ch of chapters) {
+      await SubFolder.deleteMany({ chapterId: ch._id });
+    }
     await Chapter.deleteMany({ subjectId: oid });
     await File.deleteMany({ subjectId: oid });
     await Subject.findByIdAndDelete(id);
@@ -130,6 +136,8 @@ exports.updateChapter = async (req, res) => {
 exports.deleteChapter = async (req, res) => {
   try {
     const { id } = req.params;
+    const SubFolder = require('../models/SubFolder');
+    await SubFolder.deleteMany({ chapterId: toOid(id) });
     await File.deleteMany({ chapterId: toOid(id) });
     await Chapter.findByIdAndDelete(id);
     logger.info(`Chapter deleted: ${id}`);

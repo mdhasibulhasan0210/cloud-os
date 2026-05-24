@@ -351,11 +351,29 @@ class PDFViewer {
   updateZoom() {
     document.getElementById('zoom-level').textContent = Math.round(this.scale * 100) + '%';
     
-    // Clear cache and re-render visible pages
+    // Clear cache and properly dispose of canvases
+    this.pageCache.forEach((canvas) => {
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+      canvas.width = 0;
+      canvas.height = 0;
+    });
     this.pageCache.clear();
     this.visiblePages.clear();
     
     const container = document.getElementById('pdf-pages');
+    // Remove all existing canvases
+    const existingCanvases = container.querySelectorAll('canvas');
+    existingCanvases.forEach(canvas => {
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+      canvas.width = 0;
+      canvas.height = 0;
+    });
     container.innerHTML = '';
     
     this.setupIntersectionObserver();
@@ -405,12 +423,37 @@ class PDFViewer {
   }
   
   close() {
-    // Cleanup
-    if (this.pdfDoc) {
-      this.pdfDoc.destroy();
+    // Cleanup canvases to prevent memory leaks
+    this.pageCache.forEach((canvas) => {
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+      canvas.width = 0;
+      canvas.height = 0;
+    });
+    this.pageCache.clear();
+    
+    // Clear all rendered canvases in DOM
+    const container = document.getElementById('pdf-pages');
+    if (container) {
+      const canvases = container.querySelectorAll('canvas');
+      canvases.forEach(canvas => {
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+        canvas.width = 0;
+        canvas.height = 0;
+      });
     }
     
-    this.pageCache.clear();
+    // Destroy PDF document
+    if (this.pdfDoc) {
+      this.pdfDoc.destroy();
+      this.pdfDoc = null;
+    }
+    
     this.container.innerHTML = '';
     
     // Navigate back or close modal

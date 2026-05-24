@@ -12,8 +12,52 @@ const app = express();
 
 // Security middleware
 app.use(helmet({
-  contentSecurityPolicy: false, // Disable for development; configure properly in production
-  crossOriginEmbedderPolicy: false
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: [
+        "'self'",
+        "'unsafe-inline'", // Required for inline scripts (consider moving to external files in production)
+        "'unsafe-eval'", // Required for PDF.js and Three.js
+        "https://cdnjs.cloudflare.com",
+        "https://cdn.socket.io",
+        "https://unpkg.com"
+      ],
+      styleSrc: [
+        "'self'",
+        "'unsafe-inline'", // Required for inline styles
+        "https://cdnjs.cloudflare.com",
+        "https://fonts.googleapis.com"
+      ],
+      fontSrc: [
+        "'self'",
+        "https://cdnjs.cloudflare.com",
+        "https://fonts.gstatic.com",
+        "data:"
+      ],
+      imgSrc: [
+        "'self'",
+        "data:",
+        "blob:",
+        "https:",
+        "http:" // Allow external images
+      ],
+      connectSrc: [
+        "'self'",
+        "https:",
+        "wss:", // WebSocket connections
+        "ws:"
+      ],
+      mediaSrc: ["'self'", "blob:", "https:"],
+      objectSrc: ["'none'"],
+      frameSrc: ["'self'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+      upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : null
+    }
+  },
+  crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 
 // CORS

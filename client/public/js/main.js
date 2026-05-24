@@ -16,7 +16,48 @@ document.addEventListener('DOMContentLoaded', () => {
   initSmoothScroll();
   initFormValidation();
   initNotifications();
+  initGlobalErrorHandlers();
 });
+
+// Global error handlers
+function initGlobalErrorHandlers() {
+  // Handle unhandled promise rejections
+  window.addEventListener('unhandledrejection', (event) => {
+    console.error('Unhandled promise rejection:', event.reason);
+    
+    // Show user-friendly error message
+    const errorMessage = event.reason?.message || 'An unexpected error occurred';
+    showNotification(errorMessage, 'error');
+    
+    // Prevent default browser error handling
+    event.preventDefault();
+  });
+  
+  // Handle uncaught errors
+  window.addEventListener('error', (event) => {
+    console.error('Uncaught error:', event.error);
+    
+    // Show user-friendly error message for critical errors
+    if (event.error && !event.error.toString().includes('ResizeObserver')) {
+      const errorMessage = event.error?.message || 'An unexpected error occurred';
+      showNotification(errorMessage, 'error');
+    }
+    
+    // Don't prevent default for script loading errors
+    if (event.filename) {
+      console.error(`Script error in ${event.filename}:${event.lineno}:${event.colno}`);
+    }
+  });
+  
+  // Handle network errors
+  window.addEventListener('offline', () => {
+    showNotification('You are offline. Some features may not work.', 'warning', 0);
+  });
+  
+  window.addEventListener('online', () => {
+    showNotification('You are back online', 'success', 3000);
+  });
+}
 
 // Mobile menu toggle
 function initMobileMenu() {

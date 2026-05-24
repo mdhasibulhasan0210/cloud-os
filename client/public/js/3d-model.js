@@ -339,7 +339,39 @@ if (document.readyState === 'loading') {
 
 // Cleanup on page unload
 window.addEventListener('beforeunload', () => {
+  // Stop animation
+  isAnimating = false;
+  
+  // Dispose of all geometries and materials
+  if (scene) {
+    scene.traverse((object) => {
+      if (object.geometry) {
+        object.geometry.dispose();
+      }
+      if (object.material) {
+        if (Array.isArray(object.material)) {
+          object.material.forEach(material => material.dispose());
+        } else {
+          object.material.dispose();
+        }
+      }
+    });
+  }
+  
+  // Dispose of renderer
   if (renderer) {
     renderer.dispose();
+    renderer.forceContextLoss();
+    renderer.domElement = null;
+    renderer = null;
   }
+  
+  // Clear references
+  scene = null;
+  camera = null;
+  dodecahedron = null;
+  orbitingIcons = null;
+  dataCore = null;
+  gridFloor = null;
+  particles = null;
 });

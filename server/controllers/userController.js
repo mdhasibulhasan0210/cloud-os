@@ -122,8 +122,11 @@ exports.updateUser = async (req, res) => {
 exports.deleteUser = async (req, res) => {
   try {
     const { id } = req.params;
+    if (id === req.user.id) return res.status(400).json({ success: false, message: 'Cannot delete your own account' });
     const user = await User.findById(id);
-    if (user && user.role === 'admin') return res.status(400).json({ success: false, message: 'Cannot delete admin account' });
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+    if (user.role === 'owner') return res.status(400).json({ success: false, message: 'Cannot delete owner account' });
+    if (user.role === 'admin' && req.user.role !== 'owner') return res.status(403).json({ success: false, message: 'Only owner can delete admin accounts' });
     await User.findByIdAndDelete(id);
     res.json({ success: true, message: 'User deleted successfully' });
   } catch (e) { res.status(500).json({ success: false, message: 'Server error' }); }

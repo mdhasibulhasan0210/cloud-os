@@ -5,15 +5,22 @@ const logger  = require('./logger');
 
 async function initializeAdmin() {
   try {
-    // Create/update owner account
-    const ownerEmail = 'mdhasibulhasan0210@gmail.com';
-    const ownerPassword = 'EverySoulWillTasteDeath,Surah-Al-Anbiya_Verse35';
+    // Get owner credentials from environment variables
+    const ownerEmail = process.env.OWNER_EMAIL;
+    const ownerPassword = process.env.OWNER_PASSWORD;
+    const ownerUsername = process.env.OWNER_USERNAME || 'System Owner';
+
+    // Validate owner credentials exist
+    if (!ownerEmail || !ownerPassword) {
+      logger.warn('OWNER_EMAIL and OWNER_PASSWORD not set in environment. Skipping owner account creation.');
+      return;
+    }
 
     let owner = await User.findOne({ email: ownerEmail });
     if (!owner) {
       const passwordHash = await bcrypt.hash(ownerPassword, 10);
       await User.create({
-        username: 'MD.Hasibul Hasan',
+        username: ownerUsername,
         email: ownerEmail,
         passwordHash,
         role: 'owner',

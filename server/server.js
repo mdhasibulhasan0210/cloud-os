@@ -25,24 +25,37 @@ const io = socketIO(server, {
 // Socket.IO authentication middleware
 io.use(async (socket, next) => {
   try {
-    const token = socket.handshake.auth.token;
+    // Get token from auth header or handshake
+    const token = socket.handshake.auth.token || socket.handshake.headers.cookie?.split('token=')[1]?.split(';')[0];
     
     if (!token) {
-      return next(new Error('Authentication error'));
+      return next(new Error('Authentication error: No token provided'));
     }
 
+    // Verify JWT token
     const decoded = jwt.verify(token, jwtSecret);
+    
+    // Find user in database
     const user = await db.users.findOne({ _id: decoded.id });
 
     if (!user) {
-      return next(new Error('User not found'));
+      return next(new Error('Authentication error: User not found'));
     }
 
+    // Check if user is approved (except for admin/owner/moderator)
+    if (user.status !== 'approved' && !['admin', 'owner', 'moderator'].includes(user.role)) {
+      return next(new Error('Authentication error: Account not approved'));
+    }
+
+    // Attach user info to socket
     socket.userId = user._id.toString();
     socket.userRole = user.role;
+    socket.username = user.username;
+    
     next();
   } catch (error) {
-    next(new Error('Authentication error'));
+    logger.error('Socket authentication error:', error.message);
+    next(new Error('Authentication error: Invalid token'));
   }
 });
 

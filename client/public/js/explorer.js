@@ -173,24 +173,25 @@ function viewFile(fileId) {
 // Download file
 async function downloadFile(fileId, filename) {
   try {
-    const response = await fetch(`/api/files/preview/${fileId}`, {
-      credentials: 'include'
-    });
+    // Use direct link instead of loading into memory
+    const downloadUrl = `/api/files/preview/${fileId}?download=true`;
     
-    if (!response.ok) throw new Error('Download failed');
-    
-    const blob = await response.blob();
-    const url = window.URL.createObjectURL(blob);
+    // Create temporary link and trigger download
     const a = document.createElement('a');
-    a.href = url;
+    a.href = downloadUrl;
     a.download = filename;
+    a.style.display = 'none';
     document.body.appendChild(a);
     a.click();
-    window.URL.revokeObjectURL(url);
-    document.body.removeChild(a);
+    
+    // Cleanup
+    setTimeout(() => {
+      document.body.removeChild(a);
+    }, 100);
     
     app.showNotification('Download started', 'success');
   } catch (error) {
+    console.error('Download error:', error);
     app.showNotification('Download failed', 'error');
   }
 }
