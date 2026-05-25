@@ -855,8 +855,29 @@ async function deleteResult(id){
 let activeChatUser=null;
 async function viewMessages(){
   const mc=document.getElementById('main-content');
-  mc.innerHTML=`<div class="section-header"><i class="fas fa-comments"></i><h2>Messages</h2></div>
-    <div class="chat-layout">
+  mc.innerHTML=`<div class="section-header"><i class="fas fa-comments"></i><h2>Messages</h2>
+    <div style="display:flex;gap:.5rem;margin-left:auto">
+      <button class="btn btn-gray btn-sm" id="tab-users" onclick="switchMsgTab('users')"><i class="fas fa-users"></i> User Messages</button>
+      <button class="btn btn-gray btn-sm" id="tab-contact" onclick="switchMsgTab('contact')"><i class="fas fa-envelope"></i> Contact Form</button>
+    </div>
+  </div>
+    <div id="msg-content"></div>`;
+  switchMsgTab('users');
+}
+
+async function switchMsgTab(tab){
+  document.getElementById('tab-users').classList.toggle('btn-green', tab==='users');
+  document.getElementById('tab-users').classList.toggle('btn-gray', tab!=='users');
+  document.getElementById('tab-contact').classList.toggle('btn-green', tab==='contact');
+  document.getElementById('tab-contact').classList.toggle('btn-gray', tab!=='contact');
+  
+  if(tab==='users') await loadUserMessages();
+  else await loadContactMessages();
+}
+
+async function loadUserMessages(){
+  const container=document.getElementById('msg-content');
+  container.innerHTML=`<div class="chat-layout">
       <div class="chat-list" id="chat-list">${loadingHTML()}</div>
       <div class="chat-window" id="chat-window">
         <div class="chat-header" style="color:var(--muted)">Select a conversation</div>
@@ -877,6 +898,50 @@ async function viewMessages(){
       </div>`).join('');
   }catch(e){toast(e.message,'error');}
 }
+
+async function loadContactMessages(){
+  const container=document.getElementById('msg-content');
+  container.innerHTML=`<div id="contact-msgs-list">${loadingHTML()}</div>`;
+  try{
+    const d=await api('/messages/contact-messages');
+    if(!d.messages.length){
+      document.getElementById('contact-msgs-list').innerHTML='<div class="empty"><i class="fas fa-inbox"></i><p>No contact messages</p></div>';
+      return;
+    }
+    document.getElementById('contact-msgs-list').innerHTML=`<div style="display:grid;gap:1rem">
+      ${d.messages.map(m=>`
+        <div class="table-card" style="padding:1.5rem;${!m.read?'border-left:3px solid var(--green)':''}">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:1rem">
+            <div>
+              <div style="font-size:.95rem;font-weight:700;margin-bottom:.3rem">
+                <i class="fas fa-user" style="color:var(--green);margin-right:.4rem"></i>${m.name}
+              </div>
+              <div style="font-size:.78rem;color:var(--muted)">
+                <i class="fas fa-envelope" style="margin-right:.4rem"></i>${m.email}
+              </div>
+              <div style="font-size:.72rem;color:var(--muted);margin-top:.3rem">
+                <i class="fas fa-clock" style="margin-right:.4rem"></i>${fmtDate(m.createdAt)}
+              </div>
+            </div>
+            <button class="btn btn-red btn-sm" onclick="deleteContactMsg('${m.id}')" title="Delete message">
+              <i class="fas fa-trash"></i> Delete
+            </button>
+          </div>
+          <div style="background:rgba(0,255,136,.04);border:1px solid rgba(0,255,136,.15);border-radius:8px;padding:1rem;font-size:.85rem;line-height:1.6;white-space:pre-wrap">${m.message.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
+        </div>`).join('')}
+    </div>`;
+  }catch(e){toast(e.message,'error');}
+}
+
+async function deleteContactMsg(id){
+  if(!confirm('Delete this contact message?'))return;
+  try{
+    await api(`/messages/contact/${id}`,{method:'DELETE'});
+    toast('Message deleted');
+    loadContactMessages();
+  }catch(e){toast(e.message,'error');}
+}
+
 async function openChat(userId,username,el){
   activeChatUser={id:userId,name:username};
   document.querySelectorAll('.chat-item').forEach(i=>i.classList.remove('active'));

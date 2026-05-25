@@ -253,19 +253,49 @@
 })();
 
 // Form submit
-document.getElementById('contact-form').addEventListener('submit', function(e) {
+document.getElementById('contact-form').addEventListener('submit', async function(e) {
   e.preventDefault();
+  
+  const name = this.querySelector('input[type="text"]').value;
+  const email = this.querySelector('input[type="email"]').value;
+  const message = this.querySelector('textarea').value;
+  
   const btn = this.querySelector('.btn-send');
+  const originalHTML = btn.innerHTML;
   btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
   btn.disabled = true;
-  setTimeout(() => {
-    btn.innerHTML = '<i class="fas fa-paper-plane"></i> SEND MESSAGE';
-    btn.disabled = false;
-    this.reset();
+  
+  try {
+    const response = await fetch('/api/messages/contact', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email, message })
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      this.reset();
+      const toast = document.getElementById('toast');
+      toast.innerHTML = '<i class="fas fa-check-circle"></i> ' + data.message;
+      toast.style.borderColor = 'var(--green)';
+      toast.style.color = 'var(--green)';
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 3500);
+    } else {
+      throw new Error(data.message || 'Failed to send message');
+    }
+  } catch (error) {
     const toast = document.getElementById('toast');
+    toast.innerHTML = '<i class="fas fa-times-circle"></i> ' + error.message;
+    toast.style.borderColor = '#ef4444';
+    toast.style.color = '#ef4444';
     toast.classList.add('show');
     setTimeout(() => toast.classList.remove('show'), 3500);
-  }, 1500);
+  } finally {
+    btn.innerHTML = originalHTML;
+    btn.disabled = false;
+  }
 });
 </script>
 </body>

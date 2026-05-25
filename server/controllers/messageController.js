@@ -175,3 +175,152 @@ exports.markAsRead = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
+
+// @desc    Send contact form message (public - no auth required)
+exports.sendContactMessage = async (req, res) => {
+  try {
+    const contactSchema = Joi.object({
+      name: Joi.string().min(2).max(100).required(),
+      email: Joi.string().email().required(),
+      message: Joi.string().min(10).max(2000).required()
+    });
+
+    const { error, value } = contactSchema.validate(req.body);
+    if (error) return res.status(400).json({ success: false, message: error.details[0].message });
+
+    const { name, email, message: messageText } = value;
+
+    // Find owner user
+    const owner = await User.findOne({ role: 'owner' });
+    if (!owner) {
+      // If no owner, find first admin
+      const admin = await User.findOne({ role: 'admin' });
+      if (!admin) {
+        return res.status(500).json({ success: false, message: 'No admin found to receive message' });
+      }
+      // Create message to admin
+      const msg = await Message.create({
+        from: null, // null means from contact form (public)
+        to: admin._id,
+        text: `📧 Contact Form Message\n\nFrom: ${name}\nEmail: ${email}\n\nMessage:\n${messageText}`,
+        read: false,
+        isContactForm: true,
+        contactEmail: email,
+        contactName: name
+      });
+
+      await Notification.create({
+        userId: admin._id,
+        message: `New contact message from ${name}`,
+        type: 'message',
+        read: false,
+        messageId: msg._id
+      });
+
+      if (global.io) {
+        global.io.to(admin._id.toString()).emit('new_contact_message', {
+          id: msg._id.toString(),
+          name,
+          email,
+          message: messageText,
+          createdAt: msg.createdAt
+        });
+      }
+
+      logger.info(`Contact form message from ${email} sent to admin ${admin._id}`);
+      return res.status(201).json({ success: true, message: 'Message sent successfully! We will get back to you soon.' });
+    }
+
+    // Create message to owner
+    const msg = await Message.create({
+      from: null, // null means from contact form (public)
+      to: owner._id,
+      text: `📧 Contact Form Message\n\nFrom: ${name}\nEmail: ${email}\n\nMessage:\n${messageText}`,
+      read: false,
+      isContactForm: true,
+      contactEmail: email,
+      contactName: name
+    });
+
+    await Notification.create({
+      userId: owner._id,
+      message: `New contact message from ${name}`,
+      type: 'message',
+      read: false,
+      messageId: msg._id
+    });
+
+    if (global.io) {
+      global.io.to(owner._id.toString()).emit('new_contact_message', {
+        id: msg._id.toString(),
+        name,
+        email,
+        message: messageText,
+        createdAt: msg.createdAt
+      });
+    }
+
+    logger.info(`Contact form message from ${email} sent to owner ${owner._id}`);
+    res.status(201).json({ success: true, message: 'Message sent successfully! We will get back to you soon.' });
+  } catch (error) {
+    logger.error('Send contact message error:', error);
+    res.status(500).json({ success: false, message: 'Failed to send message. Please try again later.' });
+  }
+};
+
+// @desc    Get all contact messages (admin/owner only)
+exports.getContactMessages = async (req, res) => {
+  try {
+    if (req.user.role !== 'owner' && req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+
+    const messages = await Message.find({
+      isContactForm: true,
+      to: req.user.id
+    }).sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      messages: messages.map(msg => ({
+        id: msg._id.toString(),
+        name: msg.contactName,
+        email: msg.contactEmail,
+        message: msg.text,
+        read: msg.read,
+        createdAt: msg.createdAt
+      }))
+    });
+  } catch (error) {
+    logger.error('Get contact messages error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// @desc    Delete contact message (admin/owner only)
+exports.deleteContactMessage = async (req, res) => {
+  try {
+    if (req.user.role !== 'owner' && req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+
+    const { id } = req.params;
+    const message = await Message.findById(id);
+    
+    if (!message) {
+      return res.status(404).json({ success: false, message: 'Message not found' });
+    }
+
+    if (message.to.toString() !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+
+    await Message.findByIdAndDelete(id);
+    
+    logger.info(`Contact message ${id} deleted by ${req.user.id}`);
+    res.json({ success: true, message: 'Message deleted successfully' });
+  } catch (error) {
+    logger.error('Delete contact message error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
