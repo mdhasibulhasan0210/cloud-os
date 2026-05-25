@@ -177,9 +177,24 @@
   }
 
   /* ── ADMIN BUTTONS ── */
-  .btn-sm { font-size: 0.7rem !important; padding: 0.3rem 0.55rem !important; }
+  .btn-sm { font-size: 0.7rem !important; padding: 0.3rem 0.55rem !important; min-height: 30px !important; }
   .btn-sm .btn-text { display: none; }
+  .btn-sm i { font-size: 0.9em !important; margin: 0 !important; }
   .badge { font-size: 0.63rem !important; padding: 0.15rem 0.42rem !important; }
+  
+  /* Better button wrapping */
+  .file-card-actions, .subject-actions, .chapter-actions {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 0.35rem !important;
+  }
+  
+  /* Ensure buttons are easily tappable */
+  button, .btn, a.btn {
+    min-height: 36px !important;
+    min-width: 36px !important;
+    -webkit-tap-highlight-color: rgba(0, 255, 136, 0.2) !important;
+  }
 
   /* ── SECTION HEADER ── */
   .section-header { flex-wrap: wrap; gap: 0.5rem; padding: 0.75rem; margin-bottom: 1.2rem; }

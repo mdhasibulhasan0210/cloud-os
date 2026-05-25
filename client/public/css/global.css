@@ -183,13 +183,17 @@ body::before {
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
   min-height: 38px;
+  user-select: none;
 }
-.btn::after { content: ''; position: absolute; inset: 0; background: rgba(255,255,255,0); transition: background var(--t-fast); }
+.btn::after { content: ''; position: absolute; inset: 0; background: rgba(255,255,255,0); transition: background var(--t-fast); pointer-events: none; }
 .btn:hover::after { background: rgba(255,255,255,0.06); }
 .btn:active { transform: scale(0.96) !important; }
+.btn:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
 
 .btn-primary { background: linear-gradient(135deg, var(--green-mid), var(--green-dark)); color: white; box-shadow: 0 4px 14px rgba(16,185,129,0.35); }
 .btn-primary:hover { box-shadow: 0 6px 22px rgba(16,185,129,0.5); transform: translateY(-1px); }
+.btn-secondary { background: rgba(255,255,255,0.08); color: var(--text-primary); border: 1px solid rgba(255,255,255,0.15); }
+.btn-secondary:hover { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.25); }
 .btn-outline { background: transparent; color: var(--green); border: 1.5px solid var(--green); box-shadow: 0 0 12px rgba(0,255,136,0.1); }
 .btn-outline:hover { background: var(--green-subtle); box-shadow: 0 0 22px rgba(0,255,136,0.28); transform: translateY(-1px); }
 .btn-ghost { background: rgba(255,255,255,0.05); color: var(--text-muted); border: 1px solid rgba(255,255,255,0.1); }
@@ -199,6 +203,10 @@ body::before {
 .btn-sm { padding: 0.35rem 0.75rem; font-size: 0.75rem; border-radius: var(--radius-sm); min-height: 32px; }
 .btn-lg { padding: 0.85rem 1.8rem; font-size: 0.95rem; min-height: 46px; }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none !important; pointer-events: none; }
+
+/* Button icon spacing */
+.btn i { font-size: 0.9em; }
+.btn-sm i { font-size: 0.85em; }
 
 /* ── FORM ELEMENTS ── */
 .form-group { margin-bottom: 1rem; }

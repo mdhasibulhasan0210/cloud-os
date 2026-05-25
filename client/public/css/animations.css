@@ -93,6 +93,11 @@
   from { opacity: 0; transform: translateY(22px) scale(0.97); }
   to   { opacity: 1; transform: translateY(0) scale(1); }
 }
+@keyframes buttonPress {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(0.94); }
+  100% { transform: scale(1); }
+}
 @keyframes sidebarItemIn {
   from { opacity: 0; transform: translateX(-16px); }
   to   { opacity: 1; transform: translateX(0); }
@@ -137,6 +142,7 @@
 .anim-content-fade  { animation: contentFadeIn 0.4s ease-out both; }
 .anim-view-slide-in { animation: viewSlideIn   0.35s cubic-bezier(0.16,1,0.3,1) both; }
 .anim-card-entrance { animation: cardEntrance  0.5s cubic-bezier(0.16,1,0.3,1) both; }
+.anim-button-press  { animation: buttonPress   0.2s ease both; }
 .anim-sidebar-item  { animation: sidebarItemIn 0.4s cubic-bezier(0.16,1,0.3,1) both; }
 
 .anim-float         { animation: float         4.5s ease-in-out infinite; }
