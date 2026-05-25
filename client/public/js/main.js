@@ -27,7 +27,9 @@ function initGlobalErrorHandlers() {
     
     // Show user-friendly error message
     const errorMessage = event.reason?.message || 'An unexpected error occurred';
-    showNotification(errorMessage, 'error');
+    if (typeof showNotification === 'function') {
+      showNotification(errorMessage, 'error');
+    }
     
     // Prevent default browser error handling
     event.preventDefault();
@@ -40,7 +42,9 @@ function initGlobalErrorHandlers() {
     // Show user-friendly error message for critical errors
     if (event.error && !event.error.toString().includes('ResizeObserver')) {
       const errorMessage = event.error?.message || 'An unexpected error occurred';
-      showNotification(errorMessage, 'error');
+      if (typeof showNotification === 'function') {
+        showNotification(errorMessage, 'error');
+      }
     }
     
     // Don't prevent default for script loading errors
@@ -51,11 +55,15 @@ function initGlobalErrorHandlers() {
   
   // Handle network errors
   window.addEventListener('offline', () => {
-    showNotification('You are offline. Some features may not work.', 'warning', 0);
+    if (typeof showNotification === 'function') {
+      showNotification('You are offline. Some features may not work.', 'warning', 0);
+    }
   });
   
   window.addEventListener('online', () => {
-    showNotification('You are back online', 'success', 3000);
+    if (typeof showNotification === 'function') {
+      showNotification('You are back online', 'success', 3000);
+    }
   });
 }
 
