@@ -54,6 +54,7 @@ app.use(helmet({
       frameSrc: ["'self'", "https:", "blob:"],
       baseUri: ["'self'"],
       formAction: ["'self'"],
+      scriptSrcAttr: ["'unsafe-inline'"],
       upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : null
     }
   },
