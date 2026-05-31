@@ -17,69 +17,51 @@ document.addEventListener('DOMContentLoaded', () => {
   initFormValidation();
   initNotifications();
   initGlobalErrorHandlers();
+  initBengaliInputDetection();
 });
 
-// Global error handlers
+// ── GLOBAL ERROR HANDLERS ──
 function initGlobalErrorHandlers() {
-  // Handle unhandled promise rejections
   window.addEventListener('unhandledrejection', (event) => {
     console.error('Unhandled promise rejection:', event.reason);
-    
-    // Show user-friendly error message
-    const errorMessage = event.reason?.message || 'An unexpected error occurred';
-    if (typeof showNotification === 'function') {
-      showNotification(errorMessage, 'error');
-    }
-    
-    // Prevent default browser error handling
+    const msg = event.reason?.message || 'An unexpected error occurred';
+    if (typeof showNotification === 'function') showNotification(msg, 'error');
     event.preventDefault();
   });
-  
-  // Handle uncaught errors
+
   window.addEventListener('error', (event) => {
     console.error('Uncaught error:', event.error);
-    
-    // Show user-friendly error message for critical errors
     if (event.error && !event.error.toString().includes('ResizeObserver')) {
-      const errorMessage = event.error?.message || 'An unexpected error occurred';
-      if (typeof showNotification === 'function') {
-        showNotification(errorMessage, 'error');
-      }
+      const msg = event.error?.message || 'An unexpected error occurred';
+      if (typeof showNotification === 'function') showNotification(msg, 'error');
     }
-    
-    // Don't prevent default for script loading errors
-    if (event.filename) {
-      console.error(`Script error in ${event.filename}:${event.lineno}:${event.colno}`);
-    }
+    if (event.filename) console.error(`Script error in ${event.filename}:${event.lineno}:${event.colno}`);
   });
-  
-  // Handle network errors
+
   window.addEventListener('offline', () => {
-    if (typeof showNotification === 'function') {
+    if (typeof showNotification === 'function')
       showNotification('You are offline. Some features may not work.', 'warning', 0);
-    }
   });
-  
+
   window.addEventListener('online', () => {
-    if (typeof showNotification === 'function') {
+    if (typeof showNotification === 'function')
       showNotification('You are back online', 'success', 3000);
-    }
   });
 }
 
-// Mobile menu toggle
+// ── MOBILE MENU ──
 function initMobileMenu() {
   const menuBtn = document.querySelector('.mobile-menu-btn');
   const sidebar = document.querySelector('.sidebar');
   const overlay = document.querySelector('.sidebar-overlay');
-  
   if (!menuBtn || !sidebar) return;
+
   menuBtn.addEventListener('click', () => {
     menuBtn.classList.toggle('active');
     sidebar.classList.toggle('active');
     if (overlay) overlay.classList.toggle('active');
   });
-  
+
   if (overlay) {
     overlay.addEventListener('click', () => {
       menuBtn.classList.remove('active');
@@ -87,10 +69,8 @@ function initMobileMenu() {
       overlay.classList.remove('active');
     });
   }
-  
-  // Close on link click
-  const sidebarLinks = sidebar.querySelectorAll('a');
-  sidebarLinks.forEach(link => {
+
+  sidebar.querySelectorAll('a').forEach(link => {
     link.addEventListener('click', () => {
       if (window.innerWidth < 768) {
         menuBtn.classList.remove('active');
@@ -101,203 +81,124 @@ function initMobileMenu() {
   });
 }
 
-// Smooth scroll
+// ── SMOOTH SCROLL ──
 function initSmoothScroll() {
   document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-    anchor.addEventListener('click', function (e) {
+    anchor.addEventListener('click', function(e) {
       const href = this.getAttribute('href');
       if (href === '#') return;
-      
       e.preventDefault();
       const target = document.querySelector(href);
-      if (target) {
-        target.scrollIntoView({
-          behavior: 'smooth',
-          block: 'start'
-        });
-      }
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   });
 }
 
-// Form validation
+// ── FORM VALIDATION ──
 function initFormValidation() {
-  const forms = document.querySelectorAll('form[data-validate]');
-  
-  forms.forEach(form => {
-    form.addEventListener('submit', (e) => {
-      if (!validateForm(form)) {
-        e.preventDefault();
-      }
-    });
-    
-    // Real-time validation
-    const inputs = form.querySelectorAll('input, textarea');
-    inputs.forEach(input => {
+  document.querySelectorAll('form[data-validate]').forEach(form => {
+    form.addEventListener('submit', (e) => { if (!validateForm(form)) e.preventDefault(); });
+    form.querySelectorAll('input, textarea').forEach(input => {
       input.addEventListener('blur', () => validateField(input));
-      input.addEventListener('input', () => {
-        if (input.classList.contains('error')) {
-          validateField(input);
-        }
-      });
+      input.addEventListener('input', () => { if (input.classList.contains('error')) validateField(input); });
     });
   });
 }
 
 function validateForm(form) {
   let isValid = true;
-  const inputs = form.querySelectorAll('input[required], textarea[required]');
-  
-  inputs.forEach(input => {
-    if (!validateField(input)) {
-      isValid = false;
-    }
+  form.querySelectorAll('input[required], textarea[required]').forEach(input => {
+    if (!validateField(input)) isValid = false;
   });
-  
   return isValid;
 }
 
 function validateField(field) {
   const value = field.value.trim();
   const type = field.type;
-  let isValid = true;
-  let message = '';
-  
-  // Required check
-  if (field.hasAttribute('required') && !value) {
-    isValid = false;
-    message = 'This field is required';
-  }
-  
-  // Email validation
-  if (type === 'email' && value) {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(value)) {
-      isValid = false;
-      message = 'Please enter a valid email';
-    }
-  }
-  
-  // Password validation
+  let isValid = true, message = '';
+
+  if (field.hasAttribute('required') && !value) { isValid = false; message = 'This field is required'; }
+  if (type === 'email' && value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) { isValid = false; message = 'Please enter a valid email'; }
   if (type === 'password' && value && field.hasAttribute('data-min-length')) {
-    const minLength = parseInt(field.getAttribute('data-min-length'));
-    if (value.length < minLength) {
-      isValid = false;
-      message = `Password must be at least ${minLength} characters`;
-    }
+    const min = parseInt(field.getAttribute('data-min-length'));
+    if (value.length < min) { isValid = false; message = `Password must be at least ${min} characters`; }
   }
-  
-  // Show/hide error
-  if (!isValid) {
-    showFieldError(field, message);
-  } else {
-    clearFieldError(field);
-  }
-  
+
+  if (!isValid) showFieldError(field, message);
+  else clearFieldError(field);
   return isValid;
 }
 
 function showFieldError(field, message) {
   field.classList.add('error');
-  
-  let errorEl = field.parentElement.querySelector('.field-error');
-  if (!errorEl) {
-    errorEl = document.createElement('div');
-    errorEl.className = 'field-error';
-    field.parentElement.appendChild(errorEl);
-  }
-  
-  errorEl.textContent = message;
-  errorEl.style.color = '#ef4444';
-  errorEl.style.fontSize = '0.875rem';
-  errorEl.style.marginTop = '0.25rem';
+  let el = field.parentElement.querySelector('.field-error');
+  if (!el) { el = document.createElement('div'); el.className = 'field-error'; field.parentElement.appendChild(el); }
+  el.textContent = message;
+  el.style.cssText = 'color:#ef4444;font-size:0.875rem;margin-top:0.25rem';
 }
 
 function clearFieldError(field) {
   field.classList.remove('error');
-  const errorEl = field.parentElement.querySelector('.field-error');
-  if (errorEl) {
-    errorEl.remove();
-  }
+  const el = field.parentElement.querySelector('.field-error');
+  if (el) el.remove();
 }
 
-// Notifications
+// ── NOTIFICATIONS (CloudOS branded toast) ──
 function initNotifications() {
-  // Create notification container if it doesn't exist
-  if (!document.querySelector('.notification-container')) {
+  if (!document.querySelector('.toast-container')) {
     const container = document.createElement('div');
-    container.className = 'notification-container';
-    container.style.cssText = `
-      position: fixed;
-      top: 2rem;
-      right: 2rem;
-      z-index: 9999;
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
-      max-width: 400px;
-    `;
+    container.className = 'toast-container';
     document.body.appendChild(container);
   }
 }
 
 function showNotification(message, type = 'info', duration = 5000) {
-  const container = document.querySelector('.notification-container');
-  if (!container) return;
-  
-  const notification = document.createElement('div');
-  notification.className = `notification notification-${type} glass-card animate-fade-in-right`;
-  
-  const colors = {
-    success: '#10b981',
-    error: '#ef4444',
-    warning: '#f59e0b',
-    info: '#06b6d4'
-  };
-  
-  notification.style.cssText = `
-    padding: 1rem 1.5rem;
-    border-left: 4px solid ${colors[type] || colors.info};
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    min-width: 300px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  let container = document.querySelector('.toast-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.className = 'toast-container';
+    document.body.appendChild(container);
+  }
+
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+  const dur = duration > 0 ? duration : 5000;
+
+  toast.innerHTML = `
+    <div class="toast-head">
+      <div class="toast-logo-icon"><i class="fas fa-cloud"></i></div>
+      <span class="toast-brand"><i class="fas fa-cloud" style="font-size:.7rem;margin-right:.3rem"></i>CloudOS</span>
+      <div class="toast-status-dot"></div>
+    </div>
+    <div class="toast-msg">${message}</div>
+    <div class="toast-progress"><div class="toast-progress-bar" style="animation-duration:${dur}ms"></div></div>
   `;
-  
-  notification.innerHTML = `
-    <div style="flex: 1;">${message}</div>
-    <button onclick="this.parentElement.remove()" style="background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 1.5rem; padding: 0; line-height: 1;">&times;</button>
-  `;
-  
-  container.appendChild(notification);
-  
+
+  container.appendChild(toast);
+
+  // Trigger enter animation
+  requestAnimationFrame(() => requestAnimationFrame(() => toast.classList.add('show')));
+
   if (duration > 0) {
     setTimeout(() => {
-      notification.style.animation = 'fadeInRight 0.3s ease-out reverse';
-      setTimeout(() => notification.remove(), 300);
-    }, duration);
+      toast.classList.add('hide');
+      toast.classList.remove('show');
+      setTimeout(() => toast.remove(), 450);
+    }, dur);
   }
 }
 
-// API helper functions
+// ── API HELPERS ──
 async function apiRequest(endpoint, options = {}) {
   try {
     const response = await fetch(API_BASE + endpoint, {
       ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-      },
+      headers: { 'Content-Type': 'application/json', ...options.headers },
       credentials: 'include'
     });
-    
     const data = await response.json();
-    
-    if (!response.ok) {
-      throw new Error(data.message || 'Request failed');
-    }
-    
+    if (!response.ok) throw new Error(data.message || 'Request failed');
     return data;
   } catch (error) {
     console.error('API Error:', error);
@@ -308,17 +209,10 @@ async function apiRequest(endpoint, options = {}) {
 async function apiUpload(endpoint, formData) {
   try {
     const response = await fetch(API_BASE + endpoint, {
-      method: 'POST',
-      body: formData,
-      credentials: 'include'
+      method: 'POST', body: formData, credentials: 'include'
     });
-    
     const data = await response.json();
-    
-    if (!response.ok) {
-      throw new Error(data.message || 'Upload failed');
-    }
-    
+    if (!response.ok) throw new Error(data.message || 'Upload failed');
     return data;
   } catch (error) {
     console.error('Upload Error:', error);
@@ -326,47 +220,33 @@ async function apiUpload(endpoint, formData) {
   }
 }
 
-// Format file size
+// ── UTILITIES ──
 function formatFileSize(bytes) {
   if (bytes === 0) return '0 Bytes';
-  const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const k = 1024, sizes = ['Bytes', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
 }
 
-// Format date
 function formatDate(date) {
-  const d = new Date(date);
-  const now = new Date();
-  const diff = now - d;
-  const seconds = Math.floor(diff / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-  const days = Math.floor(hours / 24);
-  
+  const d = new Date(date), now = new Date(), diff = now - d;
+  const seconds = Math.floor(diff / 1000), minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60), days = Math.floor(hours / 24);
   if (seconds < 60) return 'Just now';
   if (minutes < 60) return `${minutes}m ago`;
   if (hours < 24) return `${hours}h ago`;
   if (days < 7) return `${days}d ago`;
-  
   return d.toLocaleDateString();
 }
 
-// Debounce function
 function debounce(func, wait) {
   let timeout;
-  return function executedFunction(...args) {
-    const later = () => {
-      clearTimeout(timeout);
-      func(...args);
-    };
+  return function(...args) {
     clearTimeout(timeout);
-    timeout = setTimeout(later, wait);
+    timeout = setTimeout(() => { clearTimeout(timeout); func(...args); }, wait);
   };
 }
 
-// Loading state
 function setLoading(element, isLoading) {
   if (isLoading) {
     element.disabled = true;
@@ -378,24 +258,17 @@ function setLoading(element, isLoading) {
   }
 }
 
-// Modal helpers
+// ── MODAL HELPERS ──
 function openModal(modalId) {
   const modal = document.getElementById(modalId);
-  if (modal) {
-    modal.style.display = 'flex';
-    document.body.style.overflow = 'hidden';
-  }
+  if (modal) { modal.style.display = 'flex'; document.body.style.overflow = 'hidden'; }
 }
 
 function closeModal(modalId) {
   const modal = document.getElementById(modalId);
-  if (modal) {
-    modal.style.display = 'none';
-    document.body.style.overflow = '';
-  }
+  if (modal) { modal.style.display = 'none'; document.body.style.overflow = ''; }
 }
 
-// Close modal on overlay click
 document.addEventListener('click', (e) => {
   if (e.target.classList.contains('modal-overlay')) {
     e.target.style.display = 'none';
@@ -403,29 +276,53 @@ document.addEventListener('click', (e) => {
   }
 });
 
-// Escape key to close modals
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
-    const modals = document.querySelectorAll('.modal-overlay');
-    modals.forEach(modal => {
-      modal.style.display = 'none';
-    });
+    document.querySelectorAll('.modal-overlay').forEach(m => { m.style.display = 'none'; });
     document.body.style.overflow = '';
   }
 });
 
-// Copy to clipboard
+// ── CLIPBOARD ──
 async function copyToClipboard(text) {
   try {
     await navigator.clipboard.writeText(text);
     showNotification('Copied to clipboard', 'success', 2000);
   } catch (error) {
-    console.error('Copy failed:', error);
     showNotification('Failed to copy', 'error');
   }
 }
 
-// Export functions for use in other scripts
+// ── BENGALI AUTO-DETECTION ──
+function containsBengali(text) {
+  return text ? /[\u0980-\u09FF]/.test(text) : false;
+}
+
+function applyBengaliFont(element) {
+  if (!element || element.nodeType !== 1) return;
+  const tag = element.tagName;
+  if (!tag || ['SCRIPT','STYLE','I','SVG','CANVAS','IMG','INPUT','SELECT'].includes(tag)) return;
+  const text = element.textContent || element.value || '';
+  if (containsBengali(text)) {
+    element.setAttribute('lang', 'bn');
+    element.classList.add('bengali');
+  }
+}
+
+function initBengaliInputDetection() {
+  document.addEventListener('input', (e) => {
+    const tag = e.target.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA') applyBengaliFont(e.target);
+  });
+}
+
+// ── CACHE BUSTING ──
+function cacheBust(url) {
+  if (!url) return url;
+  return `${url}${url.includes('?') ? '&' : '?'}v=${Date.now()}`;
+}
+
+// ── EXPORT GLOBAL APP OBJECT ──
 window.app = {
   state,
   apiRequest,
@@ -437,126 +334,34 @@ window.app = {
   setLoading,
   openModal,
   closeModal,
-  copyToClipboard
-};
-
-// ── CACHE BUSTING HELPER ──
-window.app.cacheBust = function(url) {
-  if (!url) return url;
-  const timestamp = Date.now();
-  const separator = url.includes('?') ? '&' : '?';
-  return `${url}${separator}v=${timestamp}`;
-};
-
-// ── IMAGE CACHE BUSTER ──
-window.app.reloadImage = function(imgElement) {
-  if (!imgElement || !imgElement.src) return;
-  const originalSrc = imgElement.src.split('?')[0]; // Remove existing query params
-  imgElement.src = window.app.cacheBust(originalSrc);
-};
-
-// ── RELOAD ALL IMAGES ──
-window.app.reloadAllImages = function() {
-  // Reload all images on the page
-  document.querySelectorAll('img').forEach(img => {
-    if (img.src && !img.src.includes('data:image')) {
-      window.app.reloadImage(img);
-    }
-  });
-  
-  // Reload favicon
-  const favicon = document.querySelector('link[rel="icon"]');
-  if (favicon) {
-    const href = favicon.href.split('?')[0];
-    favicon.href = window.app.cacheBust(href);
-  }
-  
-  console.log('All images reloaded with cache busting');
-};
-
-// ── PAGE TRANSITION HELPER ──
-window.app.transitionView = function(callback) {
-  const content = document.getElementById('content') || document.getElementById('main-content');
-  if (!content) {
-    callback();
-    return;
-  }
-  
-  // Add exit animation
-  content.style.opacity = '0';
-  content.style.transform = 'translateX(-20px)';
-  content.style.transition = 'opacity 0.25s ease-in, transform 0.25s ease-in';
-  
-  // Wait for exit, then load new content
-  setTimeout(() => {
-    callback();
-    
-    // Reset and add enter animation
-    content.style.opacity = '0';
-    content.style.transform = 'translateX(20px)';
-    
-    requestAnimationFrame(() => {
-      content.style.transition = 'opacity 0.35s cubic-bezier(0.16,1,0.3,1), transform 0.35s cubic-bezier(0.16,1,0.3,1)';
-      content.style.opacity = '1';
-      content.style.transform = 'translateX(0)';
+  copyToClipboard,
+  cacheBust,
+  reloadImage(imgEl) {
+    if (!imgEl || !imgEl.src) return;
+    imgEl.src = cacheBust(imgEl.src.split('?')[0]);
+  },
+  reloadAllImages() {
+    document.querySelectorAll('img').forEach(img => {
+      if (img.src && !img.src.includes('data:image')) this.reloadImage(img);
     });
-  }, 250);
-};
-
-// ── SMOOTH SCROLL TO TOP ──
-window.app.scrollToTop = function(smooth = true) {
-  const main = document.querySelector('.main') || document.querySelector('.main-inner');
-  if (main) {
-    main.scrollTo({
-      top: 0,
-      behavior: smooth ? 'smooth' : 'auto'
-    });
-  }
-};
-
-
-// ═══════════════════════════════════════════════════════════
-// BENGALI LANGUAGE AUTO-DETECTION
-// Automatically detects and applies Bengali font to text
-// ═══════════════════════════════════════════════════════════
-
-// Bengali Unicode range: U+0980–U+09FF
-function containsBengali(text) {
-  if (!text) return false;
-  return /[\u0980-\u09FF]/.test(text);
-}
-
-// Apply Bengali font to element if it contains Bengali text
-function applyBengaliFont(element) {
-  if (!element || element.nodeType !== 1) return;
-  // Skip interactive elements and icons
-  const tag = element.tagName;
-  if (!tag || ['SCRIPT','STYLE','I','SVG','CANVAS','IMG','INPUT','SELECT'].includes(tag)) return;
-  const text = element.textContent || element.value || '';
-  if (containsBengali(text)) {
-    element.setAttribute('lang', 'bn');
-    element.classList.add('bengali');
-  }
-}
-
-// Auto-detect Bengali in input fields as user types
-function initBengaliInputDetection() {
-  document.addEventListener('input', (e) => {
-    const tag = e.target.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA') {
-      applyBengaliFont(e.target);
-    }
-  });
-}
-
-// Initialize Bengali detection — run once on load, not on every mutation
-document.addEventListener('DOMContentLoaded', () => {
-  initBengaliInputDetection();
-});
-
-// Export Bengali detection functions
-window.app = window.app || {};
-window.app.bengali = {
-  containsBengali,
-  applyBengaliFont
+    const fav = document.querySelector('link[rel="icon"]');
+    if (fav) fav.href = cacheBust(fav.href.split('?')[0]);
+  },
+  transitionView(callback) {
+    const content = document.getElementById('content') || document.getElementById('main-content');
+    if (!content) { callback(); return; }
+    content.style.cssText = 'opacity:0;transform:translateX(-20px);transition:opacity .25s ease-in,transform .25s ease-in';
+    setTimeout(() => {
+      callback();
+      content.style.cssText = 'opacity:0;transform:translateX(20px)';
+      requestAnimationFrame(() => {
+        content.style.cssText = 'opacity:1;transform:translateX(0);transition:opacity .35s cubic-bezier(0.16,1,0.3,1),transform .35s cubic-bezier(0.16,1,0.3,1)';
+      });
+    }, 250);
+  },
+  scrollToTop(smooth = true) {
+    const main = document.querySelector('.main') || document.querySelector('.main-inner');
+    if (main) main.scrollTo({ top: 0, behavior: smooth ? 'smooth' : 'auto' });
+  },
+  bengali: { containsBengali, applyBengaliFont }
 };
