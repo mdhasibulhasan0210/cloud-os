@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /auth
+Disallow: /dashboard
+
+Sitemap: https://cloud.mdhasibulhasan.pro.bd/sitemap.xml
